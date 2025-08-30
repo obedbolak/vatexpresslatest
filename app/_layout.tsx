@@ -1,5 +1,6 @@
 import AuthGuard from "@/components/AuthGuard";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { OnboardingProvider } from "@/contexts/OnboardingContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
@@ -36,11 +37,13 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <AuthGuard>
-          <AppNavigator />
-        </AuthGuard>
-      </AuthProvider>
+      <OnboardingProvider>
+        <AuthProvider>
+          <AuthGuard>
+            <AppNavigator />
+          </AuthGuard>
+        </AuthProvider>
+      </OnboardingProvider>
     </ThemeProvider>
   );
 }

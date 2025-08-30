@@ -1,6 +1,4 @@
-// screens/index.tsx
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -13,9 +11,10 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useOnboarding } from "../../contexts/OnboardingContext";
 import { useTheme } from "../../contexts/ThemeContext";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const { width: screenWidth } = Dimensions.get("window");
 
 interface OnboardingSlide {
   id: string;
@@ -29,7 +28,7 @@ interface OnboardingSlide {
 const onboardingData: OnboardingSlide[] = [
   {
     id: "1",
-    title: "Welcome to TransitPay",
+    title: "Welcome to VExpress",
     subtitle: "Your Digital Transit Companion",
     description:
       "Buy tickets, track buses, and navigate the city with ease. All your transit needs in one app.",
@@ -65,22 +64,22 @@ const onboardingData: OnboardingSlide[] = [
   },
 ];
 
-interface indexProps {
-  onComplete: () => void;
-}
-
-const index: React.FC<indexProps> = () => {
+const OnboardingScreen: React.FC = () => {
   const { theme, isDark } = useTheme();
+  const { completeOnboarding } = useOnboarding();
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const onComplete = () => {
-    // Handle onboarding completion here
-    console.log("Onboarding completed!");
-    // save the onboarding state in AsyncStorage
-    const onboardingState = "completed";
-    AsyncStorage.setItem("onboardingState", onboardingState);
-    router.replace("/(auth)");
+  const handleComplete = async () => {
+    try {
+      await completeOnboarding();
+      console.log("Onboarding completed!");
+      router.replace("/(auth)");
+    } catch (error) {
+      console.error("Error completing onboarding:", error);
+      // Still navigate to auth even if there's an error
+      router.replace("/(auth)");
+    }
   };
 
   const handleNext = () => {
@@ -92,12 +91,12 @@ const index: React.FC<indexProps> = () => {
         animated: true,
       });
     } else {
-      onComplete();
+      handleComplete();
     }
   };
 
   const handleSkip = () => {
-    onComplete();
+    handleComplete();
   };
 
   const handleDotPress = (index: number) => {
@@ -116,212 +115,211 @@ const index: React.FC<indexProps> = () => {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <LinearGradient
-        colors={theme.gradients.background.colors}
-        start={theme.gradients.background.start}
-        end={theme.gradients.background.end}
-        locations={theme.gradients.background.locations}
-        style={styles.container}
-      >
-        <SafeAreaView style={styles.safeArea}>
-          {/* Header with Skip Button */}
-          <View style={styles.header}>
-            <View style={styles.headerSpacer} />
-            <Pressable onPress={handleSkip} style={styles.skipButton}>
-              <Text
+    <LinearGradient
+      colors={theme.gradients.background.colors}
+      start={theme.gradients.background.start}
+      end={theme.gradients.background.end}
+      locations={theme.gradients.background.locations}
+      style={styles.container}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        {/* Header with Skip Button */}
+        <View style={styles.header}>
+          <View style={styles.headerSpacer} />
+          <Pressable onPress={handleSkip} style={styles.skipButton}>
+            <Text
+              style={[
+                styles.skipText,
+                { color: theme.gradients.background.text },
+              ]}
+            >
+              Skip
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Slides Container */}
+        <ScrollView
+          ref={scrollViewRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          style={styles.scrollView}
+        >
+          {onboardingData.map((slide) => (
+            <View key={slide.id} style={styles.slide}>
+              {/* Icon Container with Gradient */}
+              <LinearGradient
+                colors={theme.gradients.card.colors}
+                start={theme.gradients.card.start}
+                end={theme.gradients.card.end}
+                locations={theme.gradients.card.locations}
                 style={[
-                  styles.skipText,
-                  { color: theme.gradients.background.text },
+                  styles.iconContainer,
+                  { borderColor: theme.gradients.card.border },
                 ]}
               >
-                Skip
-              </Text>
-            </Pressable>
+                <Ionicons name={slide.icon} size={80} color={theme.tint} />
+              </LinearGradient>
+
+              {/* Content */}
+              <View style={styles.content}>
+                <Text
+                  style={[
+                    styles.title,
+                    { color: theme.gradients.background.text },
+                  ]}
+                >
+                  {slide.title}
+                </Text>
+
+                <Text style={[styles.subtitle, { color: theme.tint }]}>
+                  {slide.subtitle}
+                </Text>
+
+                <Text
+                  style={[
+                    styles.description,
+                    { color: theme.gradients.background.text },
+                  ]}
+                >
+                  {slide.description}
+                </Text>
+              </View>
+
+              {/* Feature Badge */}
+              <LinearGradient
+                colors={theme.status.info.colors}
+                start={theme.status.info.start}
+                end={theme.status.info.end}
+                locations={theme.status.info.locations}
+                style={styles.featureBadge}
+              >
+                <Text
+                  style={[
+                    styles.featureText,
+                    { color: theme.status.info.text },
+                  ]}
+                >
+                  {slide.feature.replace("_", " ").toUpperCase()}
+                </Text>
+              </LinearGradient>
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Bottom Section */}
+        <View style={styles.bottomSection}>
+          {/* Page Indicators */}
+          <View style={styles.pagination}>
+            {onboardingData.map((_, index) => (
+              <Pressable
+                key={index}
+                onPress={() => handleDotPress(index)}
+                style={[
+                  styles.dot,
+                  {
+                    backgroundColor:
+                      index === currentIndex
+                        ? theme.tint
+                        : isDark
+                        ? "#374151"
+                        : "#E5E7EB",
+                  },
+                ]}
+              />
+            ))}
           </View>
 
-          {/* Slides Container */}
-          <ScrollView
-            ref={scrollViewRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            style={styles.scrollView}
-          >
-            {onboardingData.map((slide, index) => (
-              <View key={slide.id} style={styles.slide}>
-                {/* Icon Container with Gradient */}
-                <LinearGradient
-                  colors={theme.gradients.card.colors}
-                  start={theme.gradients.card.start}
-                  end={theme.gradients.card.end}
-                  locations={theme.gradients.card.locations}
-                  style={[
-                    styles.iconContainer,
-                    { borderColor: theme.gradients.card.border },
-                  ]}
-                >
-                  <Ionicons name={slide.icon} size={80} color={theme.tint} />
-                </LinearGradient>
-
-                {/* Content */}
-                <View style={styles.content}>
-                  <Text
-                    style={[
-                      styles.title,
-                      { color: theme.gradients.background.text },
-                    ]}
-                  >
-                    {slide.title}
-                  </Text>
-
-                  <Text style={[styles.subtitle, { color: theme.tint }]}>
-                    {slide.subtitle}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.description,
-                      { color: theme.gradients.background.text },
-                    ]}
-                  >
-                    {slide.description}
-                  </Text>
-                </View>
-
-                {/* Feature Badge */}
-                <LinearGradient
-                  colors={theme.status.info.colors}
-                  start={theme.status.info.start}
-                  end={theme.status.info.end}
-                  locations={theme.status.info.locations}
-                  style={styles.featureBadge}
-                >
-                  <Text
-                    style={[
-                      styles.featureText,
-                      { color: theme.status.info.text },
-                    ]}
-                  >
-                    {slide.feature.replace("_", " ").toUpperCase()}
-                  </Text>
-                </LinearGradient>
-              </View>
-            ))}
-          </ScrollView>
-
-          {/* Bottom Section */}
-          <View style={styles.bottomSection}>
-            {/* Page Indicators */}
-            <View style={styles.pagination}>
-              {onboardingData.map((_, index) => (
-                <Pressable
-                  key={index}
-                  onPress={() => handleDotPress(index)}
-                  style={[
-                    styles.dot,
-                    {
-                      backgroundColor:
-                        index === currentIndex
-                          ? theme.tint
-                          : isDark
-                          ? "#374151"
-                          : "#E5E7EB",
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.buttonContainer}>
-              {currentIndex > 0 && (
-                <Pressable
-                  onPress={() => {
-                    const prevIndex = currentIndex - 1;
-                    setCurrentIndex(prevIndex);
-                    scrollViewRef.current?.scrollTo({
-                      x: prevIndex * screenWidth,
-                      animated: true,
-                    });
-                  }}
-                  style={styles.secondaryButton}
-                >
-                  {({ pressed }) => (
-                    <LinearGradient
-                      colors={
-                        pressed
-                          ? theme.gradients.buttonSecondary.pressed!.colors
-                          : theme.gradients.buttonSecondary.colors
-                      }
-                      start={theme.gradients.buttonSecondary.start}
-                      end={theme.gradients.buttonSecondary.end}
-                      locations={theme.gradients.buttonSecondary.locations}
-                      style={styles.buttonGradient}
-                    >
-                      <Ionicons
-                        name="chevron-back"
-                        size={20}
-                        color={theme.gradients.buttonSecondary.text}
-                      />
-                      <Text
-                        style={[
-                          styles.buttonText,
-                          { color: theme.gradients.buttonSecondary.text },
-                        ]}
-                      >
-                        Back
-                      </Text>
-                    </LinearGradient>
-                  )}
-                </Pressable>
-              )}
-
-              <Pressable onPress={handleNext} style={styles.primaryButton}>
+          {/* Action Buttons */}
+          <View style={styles.buttonContainer}>
+            {currentIndex > 0 && (
+              <Pressable
+                onPress={() => {
+                  const prevIndex = currentIndex - 1;
+                  setCurrentIndex(prevIndex);
+                  scrollViewRef.current?.scrollTo({
+                    x: prevIndex * screenWidth,
+                    animated: true,
+                  });
+                }}
+                style={styles.secondaryButton}
+              >
                 {({ pressed }) => (
                   <LinearGradient
                     colors={
                       pressed
-                        ? theme.gradients.buttonPrimary.pressed!.colors
-                        : theme.gradients.buttonPrimary.colors
+                        ? theme.gradients.buttonSecondary.pressed!.colors
+                        : theme.gradients.buttonSecondary.colors
                     }
-                    start={theme.gradients.buttonPrimary.start}
-                    end={theme.gradients.buttonPrimary.end}
-                    locations={theme.gradients.buttonPrimary.locations}
+                    start={theme.gradients.buttonSecondary.start}
+                    end={theme.gradients.buttonSecondary.end}
+                    locations={theme.gradients.buttonSecondary.locations}
                     style={styles.buttonGradient}
                   >
+                    <Ionicons
+                      name="chevron-back"
+                      size={20}
+                      color={theme.gradients.buttonSecondary.text}
+                    />
                     <Text
                       style={[
                         styles.buttonText,
-                        { color: theme.gradients.buttonPrimary.text },
+                        { color: theme.gradients.buttonSecondary.text },
                       ]}
                     >
-                      {currentIndex === onboardingData.length - 1
-                        ? "Get Started"
-                        : "Next"}
+                      Back
                     </Text>
-                    <Ionicons
-                      name={
-                        currentIndex === onboardingData.length - 1
-                          ? "checkmark"
-                          : "chevron-forward"
-                      }
-                      size={20}
-                      color={theme.gradients.buttonPrimary.text}
-                    />
                   </LinearGradient>
                 )}
               </Pressable>
-            </View>
+            )}
+
+            <Pressable onPress={handleNext} style={styles.primaryButton}>
+              {({ pressed }) => (
+                <LinearGradient
+                  colors={
+                    pressed
+                      ? theme.gradients.buttonPrimary.pressed!.colors
+                      : theme.gradients.buttonPrimary.colors
+                  }
+                  start={theme.gradients.buttonPrimary.start}
+                  end={theme.gradients.buttonPrimary.end}
+                  locations={theme.gradients.buttonPrimary.locations}
+                  style={styles.buttonGradient}
+                >
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      { color: theme.gradients.buttonPrimary.text },
+                    ]}
+                  >
+                    {currentIndex === onboardingData.length - 1
+                      ? "Get Started"
+                      : "Next"}
+                  </Text>
+                  <Ionicons
+                    name={
+                      currentIndex === onboardingData.length - 1
+                        ? "checkmark"
+                        : "chevron-forward"
+                    }
+                    size={20}
+                    color={theme.gradients.buttonPrimary.text}
+                  />
+                </LinearGradient>
+              )}
+            </Pressable>
           </View>
-        </SafeAreaView>
-      </LinearGradient>
-    </SafeAreaView>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
-export default index;
+
+export default OnboardingScreen;
 
 const styles = StyleSheet.create({
   container: {

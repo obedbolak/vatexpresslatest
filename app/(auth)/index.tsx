@@ -16,6 +16,8 @@ import {
   View,
 } from "react-native";
 import { useTheme } from "../../contexts/ThemeContext";
+import ForgotPasswordScreen from "./ForgotPasswordScreen";
+import OtpVerificationScreen from "./OtpVerificationScreen";
 import SignUpScreen from "./signup";
 
 interface FormData {
@@ -144,8 +146,12 @@ const LoginScreen: React.FC = () => {
   >(null);
   const [emailOrPhone, setEmailOrPhone] = useState<"phone" | "email">("email");
   const [authState, setAuthState] = useState<
-    "login" | "register" | "forgot" | "Otp"
+    "login" | "register" | "forgot" | "otp"
   >("login");
+
+  // State for forgot password flow
+  const [resetCredential, setResetCredential] = useState("");
+  const [resetMethod, setResetMethod] = useState<"email" | "phone">("email");
 
   // Clear inactive field when switching between email/phone
   useEffect(() => {
@@ -164,7 +170,7 @@ const LoginScreen: React.FC = () => {
   };
 
   const validatePhone = (phone: string) => {
-    const phoneRegex = /^\+?[\d\s\-KATEX_INLINE_OPENKATEX_INLINE_CLOSE]+$/;
+    const phoneRegex = /^\+?[\d\s\-()]+$/;
     const digitCount = phone.replace(/\D/g, "").length;
     return phoneRegex.test(phone) && digitCount >= 10;
   };
@@ -176,7 +182,46 @@ const LoginScreen: React.FC = () => {
 
   const onForgotPasswordPress = () => {
     console.log("Navigating to forgot password screen");
-    // router.push("/(auth)/forgot-password");
+    setAuthState("forgot");
+  };
+
+  const handleBackToLogin = () => {
+    setAuthState("login");
+    // Reset forgot password states
+    setResetCredential("");
+    setResetMethod("email");
+  };
+
+  const handleOtpRequired = (credential: string, method: "email" | "phone") => {
+    setResetCredential(credential);
+    setResetMethod(method);
+    setAuthState("otp");
+  };
+
+  const handlePasswordResetComplete = (newPassword: string) => {
+    Alert.alert(
+      "Password Reset Successful",
+      "Your password has been successfully reset. Please sign in with your new password.",
+      [
+        {
+          text: "OK",
+          onPress: () => {
+            setAuthState("login");
+            // Optionally pre-fill the credential field
+            if (resetMethod === "email") {
+              setFormData((prev) => ({ ...prev, email: resetCredential }));
+              setEmailOrPhone("email");
+            } else {
+              setFormData((prev) => ({
+                ...prev,
+                phoneNumber: resetCredential,
+              }));
+              setEmailOrPhone("phone");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const updateFormData = (field: keyof FormData, value: string) => {
@@ -256,501 +301,522 @@ const LoginScreen: React.FC = () => {
     }
   };
 
+  // Render different screens based on authState
+  if (authState === "register") {
+    return <SignUpScreen />;
+  }
+
+  if (authState === "forgot") {
+    return (
+      <ForgotPasswordScreen
+        theme={theme}
+        isDark={isDark}
+        toggleTheme={toggleTheme}
+        onBackPress={handleBackToLogin}
+        onOtpRequired={handleOtpRequired}
+      />
+    );
+  }
+
+  if (authState === "otp") {
+    return (
+      <OtpVerificationScreen
+        theme={theme}
+        isDark={isDark}
+        toggleTheme={toggleTheme}
+        onBackPress={() => setAuthState("forgot")}
+        credential={resetCredential}
+        method={resetMethod}
+        onVerificationComplete={handlePasswordResetComplete}
+      />
+    );
+  }
+
+  // Main login screen
   return (
-    <>
-      {authState === "login" && (
-        <LinearGradient
-          colors={theme.gradients.background.colors}
-          start={theme.gradients.background.start}
-          end={theme.gradients.background.end}
-          locations={theme.gradients.background.locations}
+    <LinearGradient
+      colors={theme.gradients.background.colors}
+      start={theme.gradients.background.start}
+      end={theme.gradients.background.end}
+      locations={theme.gradients.background.locations}
+      style={{ flex: 1 }}
+    >
+      <SafeAreaView style={{ flex: 1 }}>
+        <TouchableOpacity onPress={toggleTheme} style={{ zIndex: 1 }}>
+          <Ionicons
+            name={isDark ? "moon" : "sunny"}
+            size={32}
+            color={theme.tint}
+            style={{
+              position: "absolute",
+              top: 16,
+              left: 16,
+            }}
+          />
+        </TouchableOpacity>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
         >
-          <SafeAreaView style={{ flex: 1 }}>
-            <TouchableOpacity onPress={toggleTheme} style={{ zIndex: 1 }}>
-              <Ionicons
-                name={isDark ? "moon" : "sunny"}
-                size={32}
-                color={theme.tint}
-                style={{
-                  position: "absolute",
-                  top: 16,
-                  left: 16,
-                }}
-              />
-            </TouchableOpacity>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={{ flex: 1 }}
-            >
-              <ScrollView
-                contentContainerStyle={{ flexGrow: 1 }}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
-                <View
-                  style={{ flex: 1, paddingHorizontal: 24, paddingTop: 60 }}
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: 60 }}>
+              {/* Header */}
+              <View style={{ alignItems: "center", marginBottom: 48 }}>
+                <LinearGradient
+                  colors={theme.gradients.card.colors}
+                  start={theme.gradients.card.start}
+                  end={theme.gradients.card.end}
+                  locations={theme.gradients.card.locations}
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: 40,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginBottom: 24,
+                    borderWidth: 1,
+                    borderColor: theme.gradients.card.border,
+                  }}
                 >
-                  {/* Header */}
-                  <View style={{ alignItems: "center", marginBottom: 48 }}>
-                    <LinearGradient
-                      colors={theme.gradients.card.colors}
-                      start={theme.gradients.card.start}
-                      end={theme.gradients.card.end}
-                      locations={theme.gradients.card.locations}
-                      style={{
-                        width: 80,
-                        height: 80,
-                        borderRadius: 40,
-                        justifyContent: "center",
-                        alignItems: "center",
-                        marginBottom: 24,
-                        borderWidth: 1,
-                        borderColor: theme.gradients.card.border,
-                      }}
-                    >
-                      <Ionicons name="bus" size={40} color={theme.tint} />
-                    </LinearGradient>
+                  <Ionicons name="bus" size={40} color={theme.tint} />
+                </LinearGradient>
 
-                    <Text
-                      style={{
-                        fontSize: 28,
-                        fontWeight: "700",
-                        color: theme.gradients.background.text,
-                        marginBottom: 8,
-                      }}
-                    >
-                      Welcome Back
-                    </Text>
+                <Text
+                  style={{
+                    fontSize: 28,
+                    fontWeight: "700",
+                    color: theme.gradients.background.text,
+                    marginBottom: 8,
+                  }}
+                >
+                  Welcome Back
+                </Text>
 
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        color: theme.gradients.background.text,
-                        opacity: 0.7,
-                        textAlign: "center",
-                      }}
-                    >
-                      Sign in to continue your transit journey
-                    </Text>
-                  </View>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: theme.gradients.background.text,
+                    opacity: 0.7,
+                    textAlign: "center",
+                  }}
+                >
+                  Sign in to continue your transit journey
+                </Text>
+              </View>
 
-                  {/* Display Auth Error */}
-                  {authError && (
-                    <View
-                      style={{
-                        marginBottom: 16,
-                        padding: 12,
-                        backgroundColor: theme.status.error.colors[0] + "20",
-                        borderRadius: 8,
-                        borderWidth: 1,
-                        borderColor: theme.status.error.colors[0] + "40",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: theme.status.error.colors[0],
-                          fontSize: 14,
-                          textAlign: "center",
-                        }}
-                      >
-                        {authError}
-                      </Text>
-                    </View>
-                  )}
+              {/* Display Auth Error */}
+              {authError && (
+                <View
+                  style={{
+                    marginBottom: 16,
+                    padding: 12,
+                    backgroundColor: theme.status.error.colors[0] + "20",
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: theme.status.error.colors[0] + "40",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: theme.status.error.colors[0],
+                      fontSize: 14,
+                      textAlign: "center",
+                    }}
+                  >
+                    {authError}
+                  </Text>
+                </View>
+              )}
 
-                  {/* Login Form */}
-                  <View style={{ marginBottom: 32 }}>
-                    {/* Toggle Buttons */}
-                    <View style={{ marginBottom: 20 }}>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          backgroundColor: isDark ? "#374151" : "#F3F4F6",
-                          borderRadius: 8,
-                          padding: 4,
-                          alignSelf: "flex-start",
-                          gap: 5,
-                        }}
-                      >
-                        {/* Email Button */}
-                        <Pressable
-                          onPress={() => setEmailOrPhone("email")}
-                          style={{ borderRadius: 6, overflow: "hidden" }}
-                        >
-                          {({ pressed }) => (
-                            <LinearGradient
-                              colors={
-                                emailOrPhone === "email"
-                                  ? pressed
-                                    ? theme.gradients.buttonPrimary.pressed!
-                                        .colors
-                                    : theme.gradients.buttonPrimary.colors
-                                  : (["transparent", "transparent"] as const)
-                              }
-                              start={theme.gradients.buttonPrimary.start}
-                              end={theme.gradients.buttonPrimary.end}
-                              locations={
-                                emailOrPhone === "email"
-                                  ? theme.gradients.buttonPrimary.locations
-                                  : undefined
-                              }
-                              style={{
-                                paddingVertical: 8,
-                                paddingHorizontal: 16,
-                                flexDirection: "row",
-                                alignItems: "center",
-                                opacity:
-                                  pressed && emailOrPhone !== "email" ? 0.7 : 1,
-                              }}
-                            >
-                              <Ionicons
-                                name="mail-outline"
-                                size={16}
-                                color={
-                                  emailOrPhone === "email"
-                                    ? theme.gradients.buttonPrimary.text
-                                    : theme.gradients.background.text
-                                }
-                                style={{ marginRight: 6 }}
-                              />
-                              <Text
-                                style={{
-                                  fontSize: 14,
-                                  fontWeight:
-                                    emailOrPhone === "email" ? "600" : "500",
-                                  color:
-                                    emailOrPhone === "email"
-                                      ? theme.gradients.buttonPrimary.text
-                                      : theme.gradients.background.text,
-                                }}
-                              >
-                                Email
-                              </Text>
-                            </LinearGradient>
-                          )}
-                        </Pressable>
-
-                        {/* Phone Button */}
-                        <Pressable
-                          onPress={() => setEmailOrPhone("phone")}
-                          style={{ borderRadius: 6, overflow: "hidden" }}
-                        >
-                          {({ pressed }) => (
-                            <LinearGradient
-                              colors={
-                                emailOrPhone === "phone"
-                                  ? pressed
-                                    ? theme.gradients.buttonPrimary.pressed!
-                                        .colors
-                                    : theme.gradients.buttonPrimary.colors
-                                  : (["transparent", "transparent"] as const)
-                              }
-                              start={theme.gradients.buttonPrimary.start}
-                              end={theme.gradients.buttonPrimary.end}
-                              locations={
-                                emailOrPhone === "phone"
-                                  ? theme.gradients.buttonPrimary.locations
-                                  : undefined
-                              }
-                              style={{
-                                paddingVertical: 8,
-                                paddingHorizontal: 16,
-                                flexDirection: "row",
-                                alignItems: "center",
-                                opacity:
-                                  pressed && emailOrPhone !== "phone" ? 0.7 : 1,
-                              }}
-                            >
-                              <Ionicons
-                                name="call-outline"
-                                size={16}
-                                color={
-                                  emailOrPhone === "phone"
-                                    ? theme.gradients.buttonPrimary.text
-                                    : theme.gradients.background.text
-                                }
-                                style={{ marginRight: 6 }}
-                              />
-                              <Text
-                                style={{
-                                  fontSize: 14,
-                                  fontWeight:
-                                    emailOrPhone === "phone" ? "600" : "500",
-                                  color:
-                                    emailOrPhone === "phone"
-                                      ? theme.gradients.buttonPrimary.text
-                                      : theme.gradients.background.text,
-                                }}
-                              >
-                                Phone
-                              </Text>
-                            </LinearGradient>
-                          )}
-                        </Pressable>
-                      </View>
-                    </View>
-
-                    {/* Input Field - Email or Phone with unique keys */}
-                    {emailOrPhone === "email" ? (
-                      <InputField
-                        key="email-input" // Add unique key
-                        value={formData.email}
-                        onChangeText={(value) => updateFormData("email", value)}
-                        placeholder="john.doe@example.com"
-                        icon="mail-outline"
-                        theme={theme}
-                        error={errors.email}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                      />
-                    ) : (
-                      <InputField
-                        key="phone-input" // Add unique key
-                        value={formData.phoneNumber}
-                        onChangeText={(value) =>
-                          updateFormData("phoneNumber", value)
-                        }
-                        placeholder="(123) 456-7890"
-                        icon="call-outline"
-                        theme={theme}
-                        error={errors.phoneNumber}
-                        keyboardType="phone-pad"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                      />
-                    )}
-
-                    {/* Password Input */}
-                    <View style={{ marginBottom: 24 }}>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontWeight: "600",
-                          color: theme.gradients.background.text,
-                          marginBottom: 8,
-                        }}
-                      >
-                        Password
-                      </Text>
-
-                      <LinearGradient
-                        colors={theme.gradients.card.colors}
-                        start={theme.gradients.card.start}
-                        end={theme.gradients.card.end}
-                        locations={theme.gradients.card.locations}
-                        style={{
-                          borderRadius: 12,
-                          borderWidth: 1,
-                          borderColor: theme.gradients.card.border,
-                        }}
-                      >
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingHorizontal: 16,
-                            paddingVertical: 4,
-                          }}
-                        >
-                          <Ionicons
-                            name="lock-closed-outline"
-                            size={20}
-                            color={theme.icon}
-                            style={{ marginRight: 12 }}
-                          />
-                          <TextInput
-                            value={formData.password}
-                            onChangeText={(value) =>
-                              updateFormData("password", value)
-                            }
-                            placeholder="Enter your password"
-                            placeholderTextColor={theme.icon}
-                            secureTextEntry={!showPassword}
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            style={{
-                              flex: 1,
-                              fontSize: 16,
-                              color: theme.gradients.card.text,
-                              paddingVertical: 12,
-                            }}
-                          />
-                          <Pressable
-                            onPress={() => setShowPassword(!showPassword)}
-                            style={{ padding: 4 }}
-                          >
-                            <Ionicons
-                              name={
-                                showPassword ? "eye-off-outline" : "eye-outline"
-                              }
-                              size={20}
-                              color={theme.icon}
-                            />
-                          </Pressable>
-                        </View>
-                      </LinearGradient>
-                    </View>
-
-                    {/* Forgot Password */}
+              {/* Login Form */}
+              <View style={{ marginBottom: 32 }}>
+                {/* Toggle Buttons */}
+                <View style={{ marginBottom: 20 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      backgroundColor: isDark ? "#374151" : "#F3F4F6",
+                      borderRadius: 8,
+                      padding: 4,
+                      alignSelf: "flex-start",
+                      gap: 5,
+                    }}
+                  >
+                    {/* Email Button */}
                     <Pressable
-                      onPress={onForgotPasswordPress}
-                      style={{ alignSelf: "flex-end", marginBottom: 24 }}
-                    >
-                      <Text
-                        style={{
-                          color: theme.tint,
-                          fontSize: 14,
-                          fontWeight: "500",
-                        }}
-                      >
-                        Forgot Password?
-                      </Text>
-                    </Pressable>
-
-                    {/* Login Button */}
-                    <Pressable
-                      onPress={handleLogin}
-                      disabled={authLoading}
-                      style={{ borderRadius: 14, overflow: "hidden" }}
+                      onPress={() => setEmailOrPhone("email")}
+                      style={{ borderRadius: 6, overflow: "hidden" }}
                     >
                       {({ pressed }) => (
                         <LinearGradient
                           colors={
-                            pressed
-                              ? theme.gradients.buttonPrimary.pressed!.colors
-                              : theme.gradients.buttonPrimary.colors
+                            emailOrPhone === "email"
+                              ? pressed
+                                ? theme.gradients.buttonPrimary.pressed!.colors
+                                : theme.gradients.buttonPrimary.colors
+                              : (["transparent", "transparent"] as const)
                           }
                           start={theme.gradients.buttonPrimary.start}
                           end={theme.gradients.buttonPrimary.end}
-                          locations={theme.gradients.buttonPrimary.locations}
+                          locations={
+                            emailOrPhone === "email"
+                              ? theme.gradients.buttonPrimary.locations
+                              : undefined
+                          }
                           style={{
-                            paddingVertical: 16,
-                            alignItems: "center",
-                            justifyContent: "center",
+                            paddingVertical: 8,
+                            paddingHorizontal: 16,
                             flexDirection: "row",
-                            opacity: authLoading ? 0.7 : 1,
+                            alignItems: "center",
+                            opacity:
+                              pressed && emailOrPhone !== "email" ? 0.7 : 1,
                           }}
                         >
-                          {authLoading ? (
-                            <ActivityIndicator
-                              color={theme.gradients.buttonPrimary.text}
-                              size="small"
-                            />
-                          ) : (
-                            <>
-                              <Text
-                                style={{
-                                  color: theme.gradients.buttonPrimary.text,
-                                  fontSize: 16,
-                                  fontWeight: "600",
-                                  marginRight: 8,
-                                }}
-                              >
-                                Sign In
-                              </Text>
-                              <Ionicons
-                                name="arrow-forward"
-                                size={20}
-                                color={theme.gradients.buttonPrimary.text}
-                              />
-                            </>
-                          )}
+                          <Ionicons
+                            name="mail-outline"
+                            size={16}
+                            color={
+                              emailOrPhone === "email"
+                                ? theme.gradients.buttonPrimary.text
+                                : theme.gradients.background.text
+                            }
+                            style={{ marginRight: 6 }}
+                          />
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              fontWeight:
+                                emailOrPhone === "email" ? "600" : "500",
+                              color:
+                                emailOrPhone === "email"
+                                  ? theme.gradients.buttonPrimary.text
+                                  : theme.gradients.background.text,
+                            }}
+                          >
+                            Email
+                          </Text>
+                        </LinearGradient>
+                      )}
+                    </Pressable>
+
+                    {/* Phone Button */}
+                    <Pressable
+                      onPress={() => setEmailOrPhone("phone")}
+                      style={{ borderRadius: 6, overflow: "hidden" }}
+                    >
+                      {({ pressed }) => (
+                        <LinearGradient
+                          colors={
+                            emailOrPhone === "phone"
+                              ? pressed
+                                ? theme.gradients.buttonPrimary.pressed!.colors
+                                : theme.gradients.buttonPrimary.colors
+                              : (["transparent", "transparent"] as const)
+                          }
+                          start={theme.gradients.buttonPrimary.start}
+                          end={theme.gradients.buttonPrimary.end}
+                          locations={
+                            emailOrPhone === "phone"
+                              ? theme.gradients.buttonPrimary.locations
+                              : undefined
+                          }
+                          style={{
+                            paddingVertical: 8,
+                            paddingHorizontal: 16,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            opacity:
+                              pressed && emailOrPhone !== "phone" ? 0.7 : 1,
+                          }}
+                        >
+                          <Ionicons
+                            name="call-outline"
+                            size={16}
+                            color={
+                              emailOrPhone === "phone"
+                                ? theme.gradients.buttonPrimary.text
+                                : theme.gradients.background.text
+                            }
+                            style={{ marginRight: 6 }}
+                          />
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              fontWeight:
+                                emailOrPhone === "phone" ? "600" : "500",
+                              color:
+                                emailOrPhone === "phone"
+                                  ? theme.gradients.buttonPrimary.text
+                                  : theme.gradients.background.text,
+                            }}
+                          >
+                            Phone
+                          </Text>
                         </LinearGradient>
                       )}
                     </Pressable>
                   </View>
+                </View>
 
-                  {/* Divider */}
-                  <View style={{ alignItems: "center", marginBottom: 32 }}>
+                {/* Input Field - Email or Phone with unique keys */}
+                {emailOrPhone === "email" ? (
+                  <InputField
+                    key="email-input" // Add unique key
+                    value={formData.email}
+                    onChangeText={(value) => updateFormData("email", value)}
+                    placeholder="john.doe@example.com"
+                    icon="mail-outline"
+                    theme={theme}
+                    error={errors.email}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                ) : (
+                  <InputField
+                    key="phone-input" // Add unique key
+                    value={formData.phoneNumber}
+                    onChangeText={(value) =>
+                      updateFormData("phoneNumber", value)
+                    }
+                    placeholder="(123) 456-7890"
+                    icon="call-outline"
+                    theme={theme}
+                    error={errors.phoneNumber}
+                    keyboardType="phone-pad"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                )}
+
+                {/* Password Input */}
+                <View style={{ marginBottom: 24 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color: theme.gradients.background.text,
+                      marginBottom: 8,
+                    }}
+                  >
+                    Password
+                  </Text>
+
+                  <LinearGradient
+                    colors={theme.gradients.card.colors}
+                    start={theme.gradients.card.start}
+                    end={theme.gradients.card.end}
+                    locations={theme.gradients.card.locations}
+                    style={{
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: theme.gradients.card.border,
+                    }}
+                  >
                     <View
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        width: "100%",
+                        paddingHorizontal: 16,
+                        paddingVertical: 4,
                       }}
                     >
-                      <View
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={20}
+                        color={theme.icon}
+                        style={{ marginRight: 12 }}
+                      />
+                      <TextInput
+                        value={formData.password}
+                        onChangeText={(value) =>
+                          updateFormData("password", value)
+                        }
+                        placeholder="Enter your password"
+                        placeholderTextColor={theme.icon}
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                        autoCorrect={false}
                         style={{
                           flex: 1,
-                          height: 1,
-                          backgroundColor: isDark ? "#374151" : "#E5E7EB",
+                          fontSize: 16,
+                          color: theme.gradients.card.text,
+                          paddingVertical: 12,
                         }}
                       />
-                      <Text
-                        style={{
-                          marginHorizontal: 16,
-                          fontSize: 14,
-                          color: theme.gradients.background.text,
-                          opacity: 0.6,
-                        }}
+                      <Pressable
+                        onPress={() => setShowPassword(!showPassword)}
+                        style={{ padding: 4 }}
                       >
-                        or continue with
-                      </Text>
-                      <View
-                        style={{
-                          flex: 1,
-                          height: 1,
-                          backgroundColor: isDark ? "#374151" : "#E5E7EB",
-                        }}
-                      />
+                        <Ionicons
+                          name={
+                            showPassword ? "eye-off-outline" : "eye-outline"
+                          }
+                          size={20}
+                          color={theme.icon}
+                        />
+                      </Pressable>
                     </View>
-                  </View>
+                  </LinearGradient>
+                </View>
 
-                  {/* Social Login Buttons */}
-                  <View
-                    style={{ marginBottom: 32, flexDirection: "row", gap: 16 }}
+                {/* Forgot Password */}
+                <Pressable
+                  onPress={onForgotPasswordPress}
+                  style={{ alignSelf: "flex-end", marginBottom: 24 }}
+                >
+                  <Text
+                    style={{
+                      color: theme.tint,
+                      fontSize: 14,
+                      fontWeight: "500",
+                    }}
                   >
-                    <SocialLoginButton
-                      provider="google"
-                      onPress={() => handleSocialLogin("google")}
-                      isLoading={socialLoading === "google"}
-                      theme={theme}
-                    />
+                    Forgot Password?
+                  </Text>
+                </Pressable>
 
-                    {Platform.OS === "ios" && (
-                      <SocialLoginButton
-                        provider="apple"
-                        onPress={() => handleSocialLogin("apple")}
-                        isLoading={socialLoading === "apple"}
-                        theme={theme}
-                      />
-                    )}
-
-                    <SocialLoginButton
-                      provider="facebook"
-                      onPress={() => handleSocialLogin("facebook")}
-                      isLoading={socialLoading === "facebook"}
-                      theme={theme}
-                    />
-                  </View>
-
-                  {/* Sign Up Link */}
-                  <View style={{ alignItems: "center", paddingBottom: 24 }}>
-                    <Text
+                {/* Login Button */}
+                <Pressable
+                  onPress={handleLogin}
+                  disabled={authLoading}
+                  style={{ borderRadius: 14, overflow: "hidden" }}
+                >
+                  {({ pressed }) => (
+                    <LinearGradient
+                      colors={
+                        pressed
+                          ? theme.gradients.buttonPrimary.pressed!.colors
+                          : theme.gradients.buttonPrimary.colors
+                      }
+                      start={theme.gradients.buttonPrimary.start}
+                      end={theme.gradients.buttonPrimary.end}
+                      locations={theme.gradients.buttonPrimary.locations}
                       style={{
-                        color: theme.gradients.background.text,
-                        opacity: 0.7,
+                        paddingVertical: 16,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexDirection: "row",
+                        opacity: authLoading ? 0.7 : 1,
                       }}
                     >
-                      Don't have an account?
-                      <Text
-                        onPress={onSignUpPress}
-                        style={{ color: theme.tint, fontWeight: "600" }}
-                      >
-                        {authState === "login" ? " Sign Up" : " Sign In"}
-                      </Text>
-                    </Text>
-                  </View>
+                      {authLoading ? (
+                        <ActivityIndicator
+                          color={theme.gradients.buttonPrimary.text}
+                          size="small"
+                        />
+                      ) : (
+                        <>
+                          <Text
+                            style={{
+                              color: theme.gradients.buttonPrimary.text,
+                              fontSize: 16,
+                              fontWeight: "600",
+                              marginRight: 8,
+                            }}
+                          >
+                            Sign In
+                          </Text>
+                          <Ionicons
+                            name="arrow-forward"
+                            size={20}
+                            color={theme.gradients.buttonPrimary.text}
+                          />
+                        </>
+                      )}
+                    </LinearGradient>
+                  )}
+                </Pressable>
+              </View>
+
+              {/* Divider */}
+              <View style={{ alignItems: "center", marginBottom: 32 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    width: "100%",
+                  }}
+                >
+                  <View
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      backgroundColor: isDark ? "#374151" : "#E5E7EB",
+                    }}
+                  />
+                  <Text
+                    style={{
+                      marginHorizontal: 16,
+                      fontSize: 14,
+                      color: theme.gradients.background.text,
+                      opacity: 0.6,
+                    }}
+                  >
+                    or continue with
+                  </Text>
+                  <View
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      backgroundColor: isDark ? "#374151" : "#E5E7EB",
+                    }}
+                  />
                 </View>
-              </ScrollView>
-            </KeyboardAvoidingView>
-          </SafeAreaView>
-        </LinearGradient>
-      )}
-      {authState === "register" && <SignUpScreen />}
-    </>
+              </View>
+
+              {/* Social Login Buttons */}
+              <View style={{ marginBottom: 32, flexDirection: "row", gap: 16 }}>
+                <SocialLoginButton
+                  provider="google"
+                  onPress={() => handleSocialLogin("google")}
+                  isLoading={socialLoading === "google"}
+                  theme={theme}
+                />
+
+                {Platform.OS === "ios" && (
+                  <SocialLoginButton
+                    provider="apple"
+                    onPress={() => handleSocialLogin("apple")}
+                    isLoading={socialLoading === "apple"}
+                    theme={theme}
+                  />
+                )}
+
+                <SocialLoginButton
+                  provider="facebook"
+                  onPress={() => handleSocialLogin("facebook")}
+                  isLoading={socialLoading === "facebook"}
+                  theme={theme}
+                />
+              </View>
+
+              {/* Sign Up Link */}
+              <View style={{ alignItems: "center", paddingBottom: 24 }}>
+                <Text
+                  style={{
+                    color: theme.gradients.background.text,
+                    opacity: 0.7,
+                  }}
+                >
+                  Don't have an account?
+                  <Text
+                    onPress={onSignUpPress}
+                    style={{ color: theme.tint, fontWeight: "600" }}
+                  >
+                    {" Sign Up"}
+                  </Text>
+                </Text>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
@@ -819,7 +885,6 @@ const SocialLoginButton: React.FC<SocialLoginButtonProps> = ({
             paddingVertical: 14,
             paddingHorizontal: 16,
             flexDirection: "row",
-
             alignItems: "center",
             justifyContent: "center",
             borderWidth: provider === "google" ? 1 : 0,

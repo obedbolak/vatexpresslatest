@@ -237,7 +237,7 @@ const useAuthStore = create<AuthState>()(
 
           set({ isLoading: true });
 
-          const response = await fetch(`${API_BASE_URL}/auth/me`, {
+          const response = await fetch(`${API_BASE_URL}/users/me`, {
             method: "GET",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -283,7 +283,7 @@ const useAuthStore = create<AuthState>()(
 
           set({ isLoading: true, error: null });
 
-          const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+          const response = await fetch(`${API_BASE_URL}/users/profile`, {
             method: "PUT",
             headers: {
               Authorization: `Bearer ${token}`,

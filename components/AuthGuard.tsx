@@ -1,8 +1,9 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { ActivityIndicator } from "react-native";
+import { useAuth } from "../contexts/AuthContext";
+import { useOnboarding } from "../contexts/OnboardingContext";
 import { useTheme } from "../contexts/ThemeContext";
-import { useAuthGuard } from "../hooks/useAuthGuards";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -10,10 +11,11 @@ interface AuthGuardProps {
 
 const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   const { theme } = useTheme();
-  const { isLoading } = useAuthGuard();
+  const { isLoading: authLoading } = useAuth();
+  const { isLoading: onboardingLoading } = useOnboarding();
 
-  // Show loading screen while checking authentication
-  if (isLoading) {
+  // Show loading screen while checking authentication or onboarding
+  if (authLoading || onboardingLoading) {
     return (
       <LinearGradient
         colors={theme.gradients.background.colors}

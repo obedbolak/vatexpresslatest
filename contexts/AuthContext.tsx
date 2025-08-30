@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import React, { createContext, ReactNode, useContext, useEffect } from "react";
 import useAuthStore, { RegisterData, User } from "../stores/authStore";
+import { useOnboarding } from "./OnboardingContext";
 
 interface AuthContextType {
   // State
@@ -41,6 +42,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setLoading,
   } = useAuthStore();
 
+  const { isCompleted: onboardingCompleted, isLoading: onboardingLoading } =
+    useOnboarding();
+
   // Enhanced login with navigation
   const login = async (
     emailOrPhone: string,
@@ -78,20 +82,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async (): Promise<void> => {
     try {
       await originalLogout();
-      // Navigate to auth screen after logout
-      router.replace("/(auth)");
+      // Navigate based on onboarding status
+      if (onboardingCompleted) {
+        router.replace("/(auth)");
+      } else {
+        router.replace("/(onboarding)");
+      }
     } catch (error) {
       console.error("Logout error in context:", error);
-      // Even if logout fails on server, redirect to auth
-      router.replace("/(auth)");
+      // Even if logout fails on server, redirect appropriately
+      if (onboardingCompleted) {
+        router.replace("/(auth)");
+      } else {
+        router.replace("/(onboarding)");
+      }
     }
   };
 
   // Handle authentication state changes and initial app load
   useEffect(() => {
     const handleAuthStateChange = async () => {
-      // Don't do anything if still loading
-      if (isLoading) return;
+      // Don't do anything if still loading auth or onboarding
+      if (isLoading || onboardingLoading) return;
 
       // If we have a token but no user data, try to fetch user
       if (token && !user) {
@@ -100,9 +112,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           await getCurrentUser();
         } catch (error) {
           console.error("Failed to get current user:", error);
-          // If getting user fails, logout (which will redirect to auth)
+          // If getting user fails, logout (which will redirect appropriately)
           await originalLogout();
-          router.replace("/(auth)");
+          if (onboardingCompleted) {
+            router.replace("/(auth)");
+          } else {
+            router.replace("/(onboarding)");
+          }
         } finally {
           setLoading(false);
         }
@@ -111,8 +127,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // If authenticated, ensure we're on the dashboard
       if (isAuthenticated && user) {
-        const currentRoute = router.canGoBack() ? undefined : router;
-        // Only redirect if not already on dashboard
         if (typeof window !== "undefined") {
           const currentPath = window.location?.pathname;
           if (!currentPath?.includes("/dashboard")) {
@@ -125,20 +139,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      // If not authenticated and not loading, ensure we're on auth screen
+      // If not authenticated and not loading, handle routing based on onboarding status
       if (!isAuthenticated && !isLoading) {
-        const currentRoute = router.canGoBack() ? undefined : router;
         if (typeof window !== "undefined") {
           const currentPath = window.location?.pathname;
-          if (
-            !currentPath?.includes("/(auth)") &&
-            !currentPath?.includes("/onboarding")
-          ) {
-            router.replace("/(auth)");
+
+          // If onboarding not completed, go to onboarding
+          if (!onboardingCompleted) {
+            if (!currentPath?.includes("/(onboarding)")) {
+              router.replace("/(onboarding)");
+            }
+          } else {
+            // If onboarding completed but not authenticated, go to auth
+            if (!currentPath?.includes("/(auth)")) {
+              router.replace("/(auth)");
+            }
           }
         } else {
-          // For native, redirect to auth if not authenticated
-          router.replace("/(auth)");
+          // For native
+          if (!onboardingCompleted) {
+            router.replace("/(onboarding)");
+          } else {
+            router.replace("/(auth)");
+          }
         }
       }
     };
@@ -149,6 +172,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     token,
     isLoading,
+    onboardingCompleted,
+    onboardingLoading,
     getCurrentUser,
     originalLogout,
     setLoading,
