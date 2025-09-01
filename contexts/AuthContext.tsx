@@ -54,7 +54,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const success = await originalLogin(emailOrPhone, password);
       if (success) {
         // Navigate to dashboard after successful login
-        router.replace("/dashboard");
+        router.replace("./(dashboard)");
       }
       return success;
     } catch (error) {
@@ -69,7 +69,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const success = await originalRegister(userData);
       if (success) {
         // Navigate to dashboard after successful registration
-        router.replace("/dashboard");
+        router.replace("./(dashboard)");
       }
       return success;
     } catch (error) {
@@ -130,11 +130,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (typeof window !== "undefined") {
           const currentPath = window.location?.pathname;
           if (!currentPath?.includes("/dashboard")) {
-            router.replace("/dashboard");
+            router.replace("./(dashboard)");
           }
         } else {
           // For native, always redirect when authenticated
-          router.replace("/dashboard");
+          router.replace("./(dashboard)");
         }
         return;
       }

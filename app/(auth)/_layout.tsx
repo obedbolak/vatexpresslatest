@@ -1,4 +1,3 @@
-/*************  ✨ Windsurf Command ⭐  *************/
 import { Stack } from "expo-router";
 
 const _layout = () => {

@@ -15,7 +15,9 @@ const CARD_WIDTH = screenWidth * 0.85;
 const CARD_MARGIN = 10;
 
 const DashboardScreen: React.FC = () => {
-  const [ActiveTab, setActiveTab] = useState("Home");
+  const [ActiveTab, setActiveTab] = useState<
+    "Home" | "Search" | "Settings" | "Bookings" | "nothing"
+  >("Home");
 
   const { theme, isDark, toggleTheme } = useTheme();
   const { user } = useAuth();
@@ -34,6 +36,7 @@ const DashboardScreen: React.FC = () => {
           position: "absolute",
           width: "80%",
           gap: 20,
+          borderRadius: 16,
         }}
       >
         <Pressable
@@ -158,7 +161,7 @@ const DashboardScreen: React.FC = () => {
         {ActiveTab === "Search" && <SearchScreen />}
         {ActiveTab === "Bookings" && <BookingScreen />}
         {ActiveTab === "Settings" && <SettingsScreen />}
-        <BottomTabs theme={theme} />
+        {ActiveTab !== "nothing" && <BottomTabs theme={theme} />}
       </SafeAreaView>
     </LinearGradient>
   );

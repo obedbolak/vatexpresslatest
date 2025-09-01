@@ -10,6 +10,8 @@ export interface User {
   phone?: string;
   dateOfBirth?: string;
   gender?: "male" | "female" | "other";
+  isPhoneReal: boolean;
+  isEmailReal: boolean;
   address?: {
     street: string;
     city: string;

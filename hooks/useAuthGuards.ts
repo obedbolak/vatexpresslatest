@@ -14,12 +14,12 @@ export const useAuthGuard = () => {
       pathname?.includes("/(auth)") || pathname?.includes("/auth");
     const isOnboardingRoute =
       pathname?.includes("/(onboarding)") || pathname?.includes("/onboarding");
-    const isDashboardRoute = pathname?.includes("/dashboard");
+    const isDashboardRoute = pathname?.includes("/(dashboard)");
 
     // If user is authenticated but not on dashboard, redirect to dashboard
     if (isAuthenticated && user && !isDashboardRoute) {
       console.log("Redirecting authenticated user to dashboard");
-      router.replace("/dashboard");
+      router.replace("./(dashboard)");
       return;
     }
 

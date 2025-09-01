@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from "react-native";
+import ViewAllBuses from "./ViewBuses";
 export interface QuickActionCardProps {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
@@ -35,55 +36,55 @@ export interface Bus {
 export const todaysBuses: Bus[] = [
   {
     id: "1",
-    route: "New York → Washington DC",
-    departure: "Port Authority",
-    arrival: "Union Station",
-    price: 45,
-    duration: "4h 30m",
+    route: "Yaoundé → Douala",
+    departure: "Gare Routière Mvog-Ada",
+    arrival: "Gare Routière Bonabéri",
+    price: 3500,
+    duration: "3h 45m",
     busType: "Express",
     seatsAvailable: 12,
     image: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400",
+    departureTime: "06:30 AM",
+    arrivalTime: "10:15 AM",
+  },
+  {
+    id: "2",
+    route: "Douala → Bafoussam",
+    departure: "Gare Routière Bonabéri",
+    arrival: "Gare Routière Bafoussam",
+    price: 4200,
+    duration: "4h 30m",
+    busType: "Luxury",
+    seatsAvailable: 8,
+    image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400",
     departureTime: "08:00 AM",
     arrivalTime: "12:30 PM",
   },
   {
-    id: "2",
-    route: "Los Angeles → San Francisco",
-    departure: "Downtown LA",
-    arrival: "San Francisco Terminal",
-    price: 65,
-    duration: "6h 15m",
-    busType: "Luxury",
-    seatsAvailable: 8,
-    image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400",
-    departureTime: "09:30 AM",
-    arrivalTime: "03:45 PM",
-  },
-  {
     id: "3",
-    route: "Chicago → Detroit",
-    departure: "Union Station",
-    arrival: "Detroit Central",
-    price: 35,
-    duration: "5h 45m",
+    route: "Yaoundé → Bamenda",
+    departure: "Gare Routière Mvog-Ada",
+    arrival: "Commercial Avenue Motor Park",
+    price: 6500,
+    duration: "6h 15m",
     busType: "Standard",
     seatsAvailable: 15,
     image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400",
-    departureTime: "11:00 AM",
-    arrivalTime: "04:45 PM",
+    departureTime: "09:00 AM",
+    arrivalTime: "03:15 PM",
   },
   {
     id: "4",
-    route: "Miami → Orlando",
-    departure: "Miami Central",
-    arrival: "Orlando Terminal",
-    price: 28,
-    duration: "3h 20m",
+    route: "Douala → Buea",
+    departure: "Gare Routière Bonabéri",
+    arrival: "Buea Motor Park",
+    price: 2500,
+    duration: "2h 30m",
     busType: "Express",
     seatsAvailable: 20,
     image: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400",
-    departureTime: "02:00 PM",
-    arrivalTime: "05:20 PM",
+    departureTime: "01:00 PM",
+    arrivalTime: "03:30 PM",
   },
 ];
 const { width: screenWidth } = Dimensions.get("window");
@@ -97,6 +98,7 @@ const Home = () => {
   const scrollViewRef = useRef<ScrollView>(null);
 
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [ViewAll, setViewAll] = useState(false);
 
   // Auto-scroll effect
   useEffect(() => {
@@ -130,237 +132,248 @@ const Home = () => {
   };
 
   return (
-    <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-          paddingHorizontal: 20,
-          paddingTop: 10,
-          marginBottom: 20,
-        }}
-      >
-        <View>
-          <Text
+    <>
+      {ViewAll ? (
+        <ViewAllBuses setViewAll={setViewAll} />
+      ) : (
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+          {/* Header */}
+          <View
             style={{
-              fontSize: 16,
-              color: theme.gradients.background.text,
-              opacity: 0.7,
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingHorizontal: 20,
+              paddingTop: 10,
+              marginBottom: 20,
             }}
           >
-            Welcome back,
-          </Text>
-          <Text
-            style={{
-              fontSize: 24,
-              fontWeight: "700",
-              color: theme.gradients.background.text,
-            }}
-          >
-            {user?.firstName} {user?.lastName}
-          </Text>
-        </View>
-
-        <Pressable
-          style={{
-            width: 50,
-            height: 50,
-            borderRadius: 25,
-            backgroundColor: theme.gradients.card.colors[0],
-            justifyContent: "center",
-            alignItems: "center",
-            borderWidth: 1,
-            borderColor: theme.gradients.card.border,
-          }}
-        >
-          <Ionicons name="notifications-outline" size={24} color={theme.tint} />
-        </Pressable>
-        <Pressable
-          style={{
-            width: 50,
-            height: 50,
-            borderRadius: 25,
-            backgroundColor: theme.gradients.card.colors[0],
-            justifyContent: "center",
-            alignItems: "center",
-            borderWidth: 1,
-            borderColor: theme.gradients.card.border,
-          }}
-          onPress={() => toggleTheme()}
-        >
-          <Ionicons
-            name={isDark ? "sunny-outline" : "moon-outline"}
-            size={24}
-            color={theme.tint}
-          />
-        </Pressable>
-      </View>
-
-      {/* Hero Section - Today's Buses */}
-      <View style={{ marginBottom: 30 }}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            paddingHorizontal: 20,
-            marginBottom: 15,
-          }}
-        >
-          <View>
-            <Text
-              style={{
-                fontSize: 20,
-                fontWeight: "700",
-                color: theme.gradients.background.text,
-              }}
-            >
-              Today's Buses
-            </Text>
-            <Text
-              style={{
-                fontSize: 14,
-                color: theme.gradients.background.text,
-                opacity: 0.6,
-              }}
-            >
-              {getTodayDate()}
-            </Text>
+            <View>
+              <Text
+                style={{
+                  fontSize: 16,
+                  color: theme.gradients.background.text,
+                  opacity: 0.7,
+                }}
+              >
+                Welcome back,
+              </Text>
+              <Text
+                style={{
+                  fontSize: 24,
+                  fontWeight: "700",
+                  color: theme.gradients.background.text,
+                }}
+              >
+                {user?.firstName} {user?.lastName}
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <Pressable
+                style={{
+                  width: 50,
+                  height: 50,
+                  borderRadius: 25,
+                  backgroundColor: theme.gradients.card.colors[0],
+                  justifyContent: "center",
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: theme.gradients.card.border,
+                }}
+              >
+                <Ionicons
+                  name="notifications-outline"
+                  size={24}
+                  color={theme.tint}
+                />
+              </Pressable>
+              <Pressable
+                style={{
+                  width: 50,
+                  height: 50,
+                  borderRadius: 25,
+                  backgroundColor: theme.gradients.card.colors[0],
+                  justifyContent: "center",
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: theme.gradients.card.border,
+                }}
+                onPress={() => toggleTheme()}
+              >
+                <Ionicons
+                  name={isDark ? "sunny-outline" : "moon-outline"}
+                  size={24}
+                  color={theme.tint}
+                />
+              </Pressable>
+            </View>
           </View>
 
-          <Pressable>
-            <Text
+          {/* Hero Section - Today's Buses */}
+          <View style={{ marginBottom: 30 }}>
+            <View
               style={{
-                fontSize: 14,
-                color: theme.tint,
-                fontWeight: "600",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                paddingHorizontal: 20,
+                marginBottom: 15,
               }}
             >
-              View All
-            </Text>
-          </Pressable>
-        </View>
+              <View>
+                <Text
+                  style={{
+                    fontSize: 20,
+                    fontWeight: "700",
+                    color: theme.gradients.background.text,
+                  }}
+                >
+                  Today's Buses
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: theme.gradients.background.text,
+                    opacity: 0.6,
+                  }}
+                >
+                  {getTodayDate()}
+                </Text>
+              </View>
 
-        {/* Auto-scrolling Bus Cards */}
-        <ScrollView
-          ref={scrollViewRef}
-          horizontal
-          pagingEnabled={false}
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={handleScroll}
-          contentContainerStyle={{
-            paddingLeft: (screenWidth - CARD_WIDTH) / 2,
-            paddingRight: (screenWidth - CARD_WIDTH) / 2,
-          }}
-          snapToInterval={CARD_WIDTH + CARD_MARGIN * 2}
-          decelerationRate="fast"
-        >
-          {todaysBuses.map((bus, index) => (
-            <BusCard
-              key={bus.id}
-              bus={bus}
-              theme={theme}
-              isActive={index === currentIndex}
-            />
-          ))}
-        </ScrollView>
+              <Pressable onPress={() => setViewAll(true)}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: theme.tint,
+                    fontWeight: "600",
+                  }}
+                >
+                  View All
+                </Text>
+              </Pressable>
+            </View>
 
-        {/* Pagination Dots */}
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "center",
-            marginTop: 15,
-            gap: 8,
-          }}
-        >
-          {todaysBuses.map((_, index) => (
-            <View
-              key={index}
-              style={{
-                width: index === currentIndex ? 20 : 8,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor:
-                  index === currentIndex
-                    ? theme.tint
-                    : theme.gradients.background.text + "30",
+            {/* Auto-scrolling Bus Cards */}
+            <ScrollView
+              ref={scrollViewRef}
+              horizontal
+              pagingEnabled={false}
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={handleScroll}
+              contentContainerStyle={{
+                paddingLeft: (screenWidth - CARD_WIDTH) / 2,
+                paddingRight: (screenWidth - CARD_WIDTH) / 2,
               }}
-            />
-          ))}
-        </View>
-      </View>
+              snapToInterval={CARD_WIDTH + CARD_MARGIN * 3}
+              decelerationRate="fast"
+            >
+              {todaysBuses.map((bus, index) => (
+                <BusCard
+                  key={bus.id}
+                  bus={bus}
+                  theme={theme}
+                  isActive={index === currentIndex}
+                />
+              ))}
+            </ScrollView>
 
-      {/* Quick Actions */}
-      <View
-        style={{
-          paddingHorizontal: 20,
-          marginBottom: 30,
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 18,
-            fontWeight: "700",
-            color: theme.gradients.background.text,
-            marginBottom: 15,
-          }}
-        >
-          Quick Actions
-        </Text>
+            {/* Pagination Dots */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "center",
+                marginTop: 15,
+                gap: 8,
+              }}
+            >
+              {todaysBuses.map((_, index) => (
+                <View
+                  key={index}
+                  style={{
+                    width: index === currentIndex ? 20 : 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor:
+                      index === currentIndex
+                        ? theme.tint
+                        : theme.gradients.background.text + "30",
+                  }}
+                />
+              ))}
+            </View>
+          </View>
 
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          <QuickActionCard
-            icon="search-outline"
-            title="Find Buses"
-            subtitle="Search routes"
-            theme={theme}
-          />
-          <QuickActionCard
-            icon="ticket-outline"
-            title="My Tickets"
-            subtitle="View bookings"
-            theme={theme}
-          />
-          <QuickActionCard
-            icon="time-outline"
-            title="Schedule"
-            subtitle="Bus timings"
-            theme={theme}
-          />
-        </View>
-      </View>
+          {/* Quick Actions */}
+          <View
+            style={{
+              paddingHorizontal: 20,
+              marginBottom: 30,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "700",
+                color: theme.gradients.background.text,
+                marginBottom: 15,
+              }}
+            >
+              Quick Actions
+            </Text>
 
-      {/* Recent Bookings */}
-      <View
-        style={{
-          paddingHorizontal: 20,
-          marginBottom: 100, // Extra space for bottom tabs
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 18,
-            fontWeight: "700",
-            color: theme.gradients.background.text,
-            marginBottom: 15,
-          }}
-        >
-          Recent Bookings
-        </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <QuickActionCard
+                icon="search-outline"
+                title="Find Buses"
+                subtitle="Search routes"
+                theme={theme}
+              />
+              <QuickActionCard
+                icon="ticket-outline"
+                title="My Tickets"
+                subtitle="View bookings"
+                theme={theme}
+              />
+              <QuickActionCard
+                icon="time-outline"
+                title="Schedule"
+                subtitle="Bus timings"
+                theme={theme}
+              />
+            </View>
+          </View>
 
-        <RecentBookingCard theme={theme} />
-        <RecentBookingCard theme={theme} />
-      </View>
-    </ScrollView>
+          {/* Recent Bookings */}
+          <View
+            style={{
+              paddingHorizontal: 20,
+              marginBottom: 100, // Extra space for bottom tabs
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "700",
+                color: theme.gradients.background.text,
+                marginBottom: 15,
+              }}
+            >
+              Recent Bookings
+            </Text>
+
+            <RecentBookingCard theme={theme} />
+            <RecentBookingCard theme={theme} />
+          </View>
+        </ScrollView>
+      )}
+    </>
   );
 };
 
@@ -678,7 +691,7 @@ const BusCard: React.FC<BusCardProps> = ({ bus, theme, isActive }) => {
                   color: theme.tint,
                 }}
               >
-                ${bus.price}
+                {bus.price}CFA
               </Text>
               <Text
                 style={{

@@ -109,7 +109,7 @@ const SettingsScreen: React.FC = () => {
               >
                 {user?.profilePic?.url ? (
                   <Image
-                    source={{ uri: user.profilePic.url }}
+                    source={{ uri: user?.profilePic.url }}
                     style={{
                       width: 74,
                       height: 74,
@@ -149,7 +149,7 @@ const SettingsScreen: React.FC = () => {
                   marginBottom: 16,
                 }}
               >
-                {user?.email || user?.phone}
+                {user?.isPhoneReal ? user?.phone : user?.email}
               </Text>
 
               {/* Verification Badge */}

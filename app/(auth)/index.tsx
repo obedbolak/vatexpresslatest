@@ -244,10 +244,19 @@ const LoginScreen: React.FC = () => {
     // Validate based on selected input type
     if (emailOrPhone === "email") {
       // Validate email and password
-      if (!formData.email.trim() || !formData.password.trim()) {
-        Alert.alert("Error", "Please fill in all fields");
+      if (!formData.email.trim() && !formData.password.trim()) {
+        setErrors({ login: "Please fill in all fields" });
+        setTimeout(() => {
+          setErrors({ login: "" });
+        }, 3000);
         return;
       }
+
+      if (!formData.email.trim()) {
+        setErrors({ email: "Please enter an email address" });
+        return;
+      }
+      ("");
 
       if (!validateEmail(formData.email)) {
         setErrors({ email: "Please enter a valid email address" });
@@ -731,6 +740,13 @@ const LoginScreen: React.FC = () => {
                     </LinearGradient>
                   )}
                 </Pressable>
+                {errors.login && (
+                  <Text
+                    style={{ color: "red", marginTop: 8, alignSelf: "center" }}
+                  >
+                    {errors.login}
+                  </Text>
+                )}
               </View>
 
               {/* Divider */}
