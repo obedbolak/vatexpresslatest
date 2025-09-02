@@ -1,4 +1,5 @@
 import { useTheme } from "@/contexts/ThemeContext";
+import { baseBuses, Bus } from "@/db/busData";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -25,21 +26,6 @@ interface Location {
   popular?: boolean;
 }
 
-interface Bus {
-  id: string;
-  routeCity: string;
-  routeDestination: string;
-  departure: string[];
-  arrival: string;
-  price: number;
-  duration: string;
-  busType: string;
-  seatsAvailable: number;
-  image: string;
-  departureTime: string;
-  arrivalTime: string;
-}
-
 interface DayData {
   date: Date;
   dayName: string;
@@ -51,126 +37,6 @@ interface DayData {
 const generateWeekData = (): DayData[] => {
   const today = new Date();
   const weekData: DayData[] = [];
-
-  // Base buses data with 8 Cameroon routes
-  const baseBuses: Bus[] = [
-    {
-      id: "1",
-      routeCity: "Yaoundé",
-      routeDestination: "Douala",
-      departure: ["Mvog-Ada", "Biyem-Assi", "Olembe"],
-      arrival: "Gare Routière Bonabéri",
-      price: 3500,
-      duration: "3h 45m",
-      busType: "Express",
-      seatsAvailable: 12,
-      image:
-        "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400",
-      departureTime: "06:30 AM",
-      arrivalTime: "10:15 AM",
-    },
-    {
-      id: "2",
-      routeCity: "Douala",
-      routeDestination: "Bafoussam",
-      departure: ["Bonabéri", "Makepe", "Akwa"],
-      arrival: "Gare Routière Bafoussam",
-      price: 4200,
-      duration: "4h 30m",
-      busType: "Luxury",
-      seatsAvailable: 8,
-      image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400",
-      departureTime: "08:00 AM",
-      arrivalTime: "12:30 PM",
-    },
-    {
-      id: "3",
-      routeCity: "Yaoundé",
-      routeDestination: "Bamenda",
-      departure: ["Mvog-Ada", "Mvan", "Nkomo"],
-      arrival: "Commercial Avenue Motor Park",
-      price: 6500,
-      duration: "6h 15m",
-      busType: "Standard",
-      seatsAvailable: 15,
-      image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400",
-      departureTime: "09:00 AM",
-      arrivalTime: "03:15 PM",
-    },
-    {
-      id: "4",
-      routeCity: "Douala",
-      routeDestination: "Buéa",
-      departure: ["Bonabéri", "Deido", "Bonanjo"],
-      arrival: "Buea Motor Park",
-      price: 2500,
-      duration: "2h 30m",
-      busType: "Express",
-      seatsAvailable: 20,
-      image:
-        "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400",
-      departureTime: "01:00 PM",
-      arrivalTime: "03:30 PM",
-    },
-    {
-      id: "5",
-      routeCity: "Bafoussam",
-      routeDestination: "Garoua",
-      departure: ["Centre-ville", "Tamdja", "Djeleng"],
-      arrival: "Gare Routière de Garoua",
-      price: 8500,
-      duration: "8h 00m",
-      busType: "VIP",
-      seatsAvailable: 6,
-      image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400",
-      departureTime: "10:00 PM",
-      arrivalTime: "06:00 AM",
-    },
-    {
-      id: "6",
-      routeCity: "Yaoundé",
-      routeDestination: "Bertoua",
-      departure: ["Mvog-Ada", "Mokolo", "Mfoundi"],
-      arrival: "Gare Routière Bertoua",
-      price: 5500,
-      duration: "5h 30m",
-      busType: "Standard",
-      seatsAvailable: 18,
-      image:
-        "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400",
-      departureTime: "07:30 AM",
-      arrivalTime: "01:00 PM",
-    },
-    {
-      id: "7",
-      routeCity: "Douala",
-      routeDestination: "Kribi",
-      departure: ["Bonabéri", "Bessengue", "Logbaba"],
-      arrival: "Kribi Beach Motor Park",
-      price: 3000,
-      duration: "3h 00m",
-      busType: "Express",
-      seatsAvailable: 14,
-      image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400",
-      departureTime: "02:00 PM",
-      arrivalTime: "05:00 PM",
-    },
-    {
-      id: "8",
-      routeCity: "Bamenda",
-      routeDestination: "Kumba",
-      departure: ["Commercial Avenue", "Foncha Street", "Up Station"],
-      arrival: "Kumba Motor Park",
-      price: 4500,
-      duration: "4h 45m",
-      busType: "Luxury",
-      seatsAvailable: 10,
-      image:
-        "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400",
-      departureTime: "11:00 AM",
-      arrivalTime: "03:45 PM",
-    },
-  ];
 
   // Generate data for 7 days starting from today
   for (let i = 0; i < 7; i++) {

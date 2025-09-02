@@ -1,14 +1,192 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
-import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
 
 const SettingsScreen: React.FC = () => {
   const { theme, isDark } = useTheme();
-  const { user, logout } = useAuth();
+  const {
+    user,
+    logout,
+    updateProfileImage,
+    getLocalProfileImage,
+    refreshUserData,
+    isLoading,
+  } = useAuth();
+
+  const [localImagePath, setLocalImagePath] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+
+  // Load local profile image on component mount
+  useEffect(() => {
+    const loadLocalImage = async () => {
+      if (user?.id) {
+        try {
+          const localPath = await getLocalProfileImage();
+          setLocalImagePath(localPath);
+        } catch (error) {
+          console.error("Failed to load local image:", error);
+        }
+      }
+    };
+
+    loadLocalImage();
+  }, [user]);
+  console.log(localImagePath, user);
+
+  // Handle profile image update
+  const handleImagePicker = async () => {
+    try {
+      // Request permission
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please grant camera roll permissions to update your profile picture"
+        );
+        return;
+      }
+
+      // Show options
+      Alert.alert("Update Profile Picture", "Choose an option", [
+        {
+          text: "Camera",
+          onPress: () => openCamera(),
+        },
+        {
+          text: "Photo Library",
+          onPress: () => openImageLibrary(),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]);
+    } catch (error) {
+      console.error("Image picker setup error:", error);
+      Alert.alert("Error", "Failed to open image picker");
+    }
+  };
+
+  const openCamera = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Camera permission is needed to take photos"
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await updateImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Camera error:", error);
+      Alert.alert("Error", "Failed to take photo");
+    }
+  };
+
+  const isemailorphone = user?.email?.includes("temp")
+    ? user?.phone
+    : user?.email;
+
+  const openImageLibrary = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await updateImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Image library error:", error);
+      Alert.alert("Error", "Failed to select image");
+    }
+  };
+
+  const updateImage = async (imageUri: string) => {
+    try {
+      setImageLoading(true);
+      const success = await updateProfileImage(imageUri);
+
+      if (success) {
+        Alert.alert("Success", "Profile picture updated successfully");
+        // Refresh local image path
+        const newLocalPath = await getLocalProfileImage();
+        setLocalImagePath(newLocalPath);
+      } else {
+        Alert.alert("Error", "Failed to update profile picture");
+      }
+    } catch (error) {
+      console.error("Image update error:", error);
+      Alert.alert("Error", "Failed to update profile picture");
+    } finally {
+      setImageLoading(false);
+    }
+  };
+
+  // Get display image (local first, then remote)
+  const getDisplayImage = () => {
+    if (localImagePath) {
+      return localImagePath;
+    }
+    if (user?.profilePic?.url) {
+      return user.profilePic.url;
+    }
+    return null;
+  };
+
+  const handleRefreshData = async () => {
+    try {
+      await refreshUserData();
+      const newLocalPath = await getLocalProfileImage();
+      setLocalImagePath(newLocalPath);
+      Alert.alert("Success", "Profile data refreshed");
+    } catch (error) {
+      Alert.alert("Error", "Failed to refresh data");
+    }
+  };
+
+  const handleLogout = async () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: logout,
+      },
+    ]);
+  };
 
   const profileStats = [
     { label: "Total Trips", value: "12", icon: "bus-outline" },
@@ -17,16 +195,45 @@ const SettingsScreen: React.FC = () => {
   ];
 
   const menuItems = [
-    { label: "Edit Profile", icon: "person-outline", action: () => {} },
-    { label: "Payment Methods", icon: "card-outline", action: () => {} },
-    { label: "Trip History", icon: "time-outline", action: () => {} },
-    { label: "Notifications", icon: "notifications-outline", action: () => {} },
-    { label: "Help & Support", icon: "help-circle-outline", action: () => {} },
-    { label: "Settings", icon: "settings-outline", action: () => {} },
+    {
+      label: "Edit Profile",
+      icon: "person-outline",
+      action: () => router.push("/(dashboard)"),
+    },
+    {
+      label: "Payment Methods",
+      icon: "card-outline",
+      action: () => router.push("/(dashboard)"),
+    },
+    {
+      label: "Trip History",
+      icon: "time-outline",
+      action: () => router.push("/(dashboard)"),
+    },
+    {
+      label: "Notifications",
+      icon: "notifications-outline",
+      action: () => router.push("/(dashboard)"),
+    },
+    {
+      label: "Help & Support",
+      icon: "help-circle-outline",
+      action: () => router.push("/(dashboard)"),
+    },
+    {
+      label: "App Settings",
+      icon: "settings-outline",
+      action: () => router.push("/(dashboard)"),
+    },
+    {
+      label: "Refresh Data",
+      icon: "refresh-outline",
+      action: handleRefreshData,
+    },
     {
       label: "Logout",
       icon: "log-out-outline",
-      action: logout,
+      action: handleLogout,
       isDestructive: true,
     },
   ];
@@ -63,6 +270,8 @@ const SettingsScreen: React.FC = () => {
             </Text>
 
             <Pressable
+              onPress={handleImagePicker}
+              disabled={imageLoading}
               style={{
                 width: 50,
                 height: 50,
@@ -72,9 +281,14 @@ const SettingsScreen: React.FC = () => {
                 alignItems: "center",
                 borderWidth: 1,
                 borderColor: theme.gradients.card.border,
+                opacity: imageLoading ? 0.6 : 1,
               }}
             >
-              <Ionicons name="create-outline" size={24} color={theme.tint} />
+              {imageLoading ? (
+                <ActivityIndicator size="small" color={theme.tint} />
+              ) : (
+                <Ionicons name="camera-outline" size={24} color={theme.tint} />
+              )}
             </Pressable>
           </View>
 
@@ -94,7 +308,9 @@ const SettingsScreen: React.FC = () => {
               }}
             >
               {/* Profile Picture */}
-              <View
+              <Pressable
+                onPress={handleImagePicker}
+                disabled={imageLoading}
                 style={{
                   width: 80,
                   height: 80,
@@ -105,11 +321,31 @@ const SettingsScreen: React.FC = () => {
                   marginBottom: 16,
                   borderWidth: 3,
                   borderColor: theme.tint,
+                  position: "relative",
                 }}
               >
+                {imageLoading && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: "rgba(0,0,0,0.5)",
+                      borderRadius: 37,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      zIndex: 1,
+                    }}
+                  >
+                    <ActivityIndicator size="small" color="white" />
+                  </View>
+                )}
+
                 {user?.profilePic?.url ? (
                   <Image
-                    source={{ uri: user?.profilePic.url }}
+                    source={{ uri: user?.profilePic?.url }}
                     style={{
                       width: 74,
                       height: 74,
@@ -124,11 +360,30 @@ const SettingsScreen: React.FC = () => {
                       color: theme.tint,
                     }}
                   >
-                    {user?.firstName?.charAt(0)}
-                    {user?.lastName?.charAt(0)}
+                    {user?.firstName?.charAt(0)?.toUpperCase()}
+                    {user?.lastName?.charAt(0)?.toUpperCase()}
                   </Text>
                 )}
-              </View>
+
+                {/* Camera Icon Overlay */}
+                <View
+                  style={{
+                    position: "absolute",
+                    bottom: -2,
+                    right: -2,
+                    width: 24,
+                    height: 24,
+                    borderRadius: 12,
+                    backgroundColor: theme.tint,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    borderWidth: 2,
+                    borderColor: theme.gradients.card.colors[0],
+                  }}
+                >
+                  <Ionicons name="camera" size={12} color="white" />
+                </View>
+              </Pressable>
 
               {/* User Info */}
               <Text
@@ -147,9 +402,10 @@ const SettingsScreen: React.FC = () => {
                   color: theme.gradients.card.text,
                   opacity: 0.6,
                   marginBottom: 16,
+                  textAlign: "center",
                 }}
               >
-                {user?.isPhoneReal ? user?.phone : user?.email}
+                {isemailorphone}
               </Text>
 
               {/* Verification Badge */}
@@ -187,6 +443,60 @@ const SettingsScreen: React.FC = () => {
                   {user?.isVerified ? "Verified" : "Not Verified"}
                 </Text>
               </View>
+
+              {/* Additional User Info */}
+              {(user?.address || user?.dateOfBirth || user?.gender) && (
+                <View
+                  style={{
+                    marginTop: 16,
+                    paddingTop: 16,
+                    borderTopWidth: 1,
+                    borderTopColor: theme.gradients.card.border,
+                    width: "100%",
+                  }}
+                >
+                  {user?.dateOfBirth && (
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: theme.gradients.card.text,
+                        opacity: 0.6,
+                        textAlign: "center",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Born: {new Date(user.dateOfBirth).toLocaleDateString()}
+                    </Text>
+                  )}
+                  {user?.gender && (
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: theme.gradients.card.text,
+                        opacity: 0.6,
+                        textAlign: "center",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Gender:{" "}
+                      {user.gender.charAt(0).toUpperCase() +
+                        user.gender.slice(1)}
+                    </Text>
+                  )}
+                  {user?.address?.city && (
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: theme.gradients.card.text,
+                        opacity: 0.6,
+                        textAlign: "center",
+                      }}
+                    >
+                      📍 {user.address.city}, {user.address.country}
+                    </Text>
+                  )}
+                </View>
+              )}
             </LinearGradient>
           </View>
 
@@ -245,7 +555,11 @@ const SettingsScreen: React.FC = () => {
               <Pressable
                 key={index}
                 onPress={item.action}
-                style={{ marginBottom: 12 }}
+                disabled={isLoading && item.label === "Refresh Data"}
+                style={{
+                  marginBottom: 12,
+                  opacity: isLoading && item.label === "Refresh Data" ? 0.6 : 1,
+                }}
               >
                 <LinearGradient
                   colors={theme.gradients.card.colors}
@@ -275,15 +589,19 @@ const SettingsScreen: React.FC = () => {
                         alignItems: "center",
                       }}
                     >
-                      <Ionicons
-                        name={item.icon as any}
-                        size={20}
-                        color={
-                          item.isDestructive
-                            ? theme.status.error.colors[0]
-                            : theme.tint
-                        }
-                      />
+                      {isLoading && item.label === "Refresh Data" ? (
+                        <ActivityIndicator size="small" color={theme.tint} />
+                      ) : (
+                        <Ionicons
+                          name={item.icon as any}
+                          size={20}
+                          color={
+                            item.isDestructive
+                              ? theme.status.error.colors[0]
+                              : theme.tint
+                          }
+                        />
+                      )}
                     </View>
                     <Text
                       style={{

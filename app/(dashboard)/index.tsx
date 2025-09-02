@@ -157,7 +157,7 @@ const DashboardScreen: React.FC = () => {
       style={{ flex: 1 }}
     >
       <SafeAreaView style={{ flex: 1 }}>
-        {ActiveTab === "Home" && <Home />}
+        {ActiveTab === "Home" && <Home setActiveTab={setActiveTab} />}
         {ActiveTab === "Search" && <SearchScreen />}
         {ActiveTab === "Bookings" && <BookingScreen />}
         {ActiveTab === "Settings" && <SettingsScreen />}

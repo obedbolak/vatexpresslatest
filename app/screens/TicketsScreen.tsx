@@ -1,3 +1,4 @@
+import { Booking, bookingsData, getBookingsByStatus } from "@/db/busData";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
@@ -7,68 +8,61 @@ import { useTheme } from "../../contexts/ThemeContext";
 
 const BookingScreen = () => {
   const { theme, isDark } = useTheme();
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | Booking["status"]>(
+    "all"
+  );
 
-  const tickets = [
-    {
-      id: "1",
-      route: "New York → Washington DC",
-      date: "Dec 15, 2024",
-      time: "09:30 AM",
-      seat: "12A",
-      price: 65,
-      status: "confirmed",
-      busNumber: "BUS001",
-    },
-    {
-      id: "2",
-      route: "Boston → New York",
-      date: "Dec 20, 2024",
-      time: "02:15 PM",
-      seat: "8B",
-      price: 45,
-      status: "pending",
-      busNumber: "BUS045",
-    },
-    {
-      id: "3",
-      route: "Los Angeles → San Francisco",
-      date: "Nov 28, 2024",
-      time: "11:00 AM",
-      seat: "15C",
-      price: 75,
-      status: "completed",
-      busNumber: "BUS123",
-    },
-  ];
+  // Use your booking data
+  const bookings = bookingsData;
 
   const filters = [
-    { id: "all", label: "All Tickets" },
-    { id: "confirmed", label: "Confirmed" },
-    { id: "pending", label: "Pending" },
-    { id: "completed", label: "Completed" },
+    { id: "all" as const, label: "All Tickets" },
+    { id: "CONFIRMED" as const, label: "Confirmed" },
+    { id: "PENDING" as const, label: "Pending" },
+    { id: "COMPLETED" as const, label: "Completed" },
+    { id: "CANCELLED" as const, label: "Cancelled" },
   ];
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: Booking["status"]) => {
     switch (status) {
-      case "confirmed":
+      case "CONFIRMED":
         return theme.status.success.colors[0];
-      case "pending":
+      case "PENDING":
         return theme.status.warning.colors[0];
-      case "completed":
+      case "COMPLETED":
         return theme.status.info.colors[0];
+      case "CANCELLED":
+        return theme.status.error?.colors[0] || "#EF4444";
       default:
         return theme.gradients.card.text;
     }
   };
 
-  const TicketCard = ({ ticket, theme, getStatusColor }: any) => (
+  // Helper function to ensure colors and locations arrays match
+  const getGradientProps = (gradient: any) => {
+    const colors = gradient.colors || [];
+    const locations = gradient.locations || [];
+
+    if (locations.length === colors.length && locations.length > 0) {
+      return {
+        colors,
+        start: gradient.start,
+        end: gradient.end,
+        locations,
+      };
+    }
+
+    return {
+      colors,
+      start: gradient.start,
+      end: gradient.end,
+    };
+  };
+
+  const TicketCard = ({ booking }: { booking: Booking }) => (
     <Pressable style={{ marginBottom: 16 }}>
       <LinearGradient
-        colors={theme.gradients.card.colors}
-        start={theme.gradients.card.start}
-        end={theme.gradients.card.end}
-        locations={theme.gradients.card.locations}
+        {...getGradientProps(theme.gradients.card)}
         style={{
           borderRadius: 16,
           overflow: "hidden",
@@ -92,13 +86,14 @@ const BookingScreen = () => {
               fontSize: 16,
               fontWeight: "700",
               color: theme.gradients.card.text,
+              flex: 1,
             }}
           >
-            {ticket.route}
+            {booking.route.origin} → {booking.route.destination}
           </Text>
           <View
             style={{
-              backgroundColor: getStatusColor(ticket.status) + "20",
+              backgroundColor: getStatusColor(booking.status) + "20",
               paddingHorizontal: 8,
               paddingVertical: 4,
               borderRadius: 8,
@@ -108,11 +103,11 @@ const BookingScreen = () => {
               style={{
                 fontSize: 12,
                 fontWeight: "600",
-                color: getStatusColor(ticket.status),
+                color: getStatusColor(booking.status),
                 textTransform: "uppercase",
               }}
             >
-              {ticket.status}
+              {booking.status}
             </Text>
           </View>
         </View>
@@ -143,7 +138,7 @@ const BookingScreen = () => {
                   color: theme.gradients.card.text,
                 }}
               >
-                {ticket.date} • {ticket.time}
+                {booking.date} • {booking.time}
               </Text>
             </View>
 
@@ -155,7 +150,7 @@ const BookingScreen = () => {
                   opacity: 0.6,
                 }}
               >
-                Bus Number
+                Reference
               </Text>
               <Text
                 style={{
@@ -164,7 +159,58 @@ const BookingScreen = () => {
                   color: theme.gradients.card.text,
                 }}
               >
-                {ticket.busNumber}
+                {booking.bookingReference}
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              marginBottom: 12,
+            }}
+          >
+            <View>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: theme.gradients.card.text,
+                  opacity: 0.6,
+                }}
+              >
+                Passenger
+              </Text>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: theme.gradients.card.text,
+                }}
+              >
+                {booking.passengerName}
+              </Text>
+            </View>
+
+            <View style={{ alignItems: "flex-end" }}>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: theme.gradients.card.text,
+                  opacity: 0.6,
+                }}
+              >
+                Seat & Price
+              </Text>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: theme.gradients.card.text,
+                }}
+              >
+                {booking.seat} • {booking.price.toLocaleString()}
+                {booking.currency}
               </Text>
             </View>
           </View>
@@ -184,36 +230,36 @@ const BookingScreen = () => {
                   opacity: 0.6,
                 }}
               >
-                Seat {ticket.seat} • ${ticket.price}
+                Bus ID: {booking.busId}
               </Text>
             </View>
 
             <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: theme.tint,
-                }}
-              >
-                <Text
+              {booking.status === "CONFIRMED" && (
+                <Pressable
                   style={{
-                    fontSize: 12,
-                    color: theme.tint,
-                    fontWeight: "600",
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: theme.tint,
                   }}
                 >
-                  View QR
-                </Text>
-              </Pressable>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: theme.tint,
+                      fontWeight: "600",
+                    }}
+                  >
+                    View QR
+                  </Text>
+                </Pressable>
+              )}
 
               <Pressable>
                 <LinearGradient
-                  colors={theme.gradients.buttonPrimary.colors}
-                  start={theme.gradients.buttonPrimary.start}
-                  end={theme.gradients.buttonPrimary.end}
+                  {...getGradientProps(theme.gradients.buttonPrimary)}
                   style={{
                     paddingHorizontal: 12,
                     paddingVertical: 6,
@@ -237,17 +283,20 @@ const BookingScreen = () => {
       </LinearGradient>
     </Pressable>
   );
-  const filteredTickets =
-    activeFilter === "all"
-      ? tickets
-      : tickets.filter((ticket) => ticket.status === activeFilter);
+
+  // Filter bookings based on active filter
+  const filteredBookings =
+    activeFilter === "all" ? bookings : getBookingsByStatus(activeFilter);
+
+  // Get booking count for each status
+  const getBookingCount = (status: "all" | Booking["status"]) => {
+    if (status === "all") return bookings.length;
+    return getBookingsByStatus(status).length;
+  };
 
   return (
     <LinearGradient
-      colors={theme.gradients.background.colors}
-      start={theme.gradients.background.start}
-      end={theme.gradients.background.end}
-      locations={theme.gradients.background.locations}
+      {...getGradientProps(theme.gradients.background)}
       style={{ flex: 1 }}
     >
       <SafeAreaView style={{ flex: 1 }}>
@@ -280,7 +329,8 @@ const BookingScreen = () => {
                   opacity: 0.7,
                 }}
               >
-                Manage your bookings
+                {bookings.length} booking{bookings.length !== 1 ? "s" : ""}{" "}
+                total
               </Text>
             </View>
 
@@ -310,63 +360,90 @@ const BookingScreen = () => {
             }}
           >
             <View style={{ flexDirection: "row", gap: 12 }}>
-              {filters.map((filter) => (
-                <Pressable
-                  key={filter.id}
-                  onPress={() => setActiveFilter(filter.id)}
-                  style={{ borderRadius: 20, overflow: "hidden" }}
-                >
-                  <LinearGradient
-                    colors={
-                      activeFilter === filter.id
-                        ? theme.gradients.buttonPrimary.colors
-                        : [
-                            theme.gradients.card.colors[0],
-                            theme.gradients.card.colors[0],
-                          ]
-                    }
-                    start={theme.gradients.buttonPrimary.start}
-                    end={theme.gradients.buttonPrimary.end}
-                    locations={theme.gradients.buttonPrimary.locations}
-                    style={{
-                      paddingHorizontal: 16,
-                      paddingVertical: 8,
-                      borderWidth: 1,
-                      borderColor:
-                        activeFilter === filter.id
-                          ? "transparent"
-                          : theme.gradients.card.border,
-                      borderRadius: 20,
-                    }}
+              {filters.map((filter) => {
+                const count = getBookingCount(filter.id);
+                return (
+                  <Pressable
+                    key={filter.id}
+                    onPress={() => setActiveFilter(filter.id)}
+                    style={{ borderRadius: 20, overflow: "hidden" }}
                   >
-                    <Text
+                    <LinearGradient
+                      {...getGradientProps(
+                        activeFilter === filter.id
+                          ? theme.gradients.buttonPrimary
+                          : {
+                              colors: [
+                                theme.gradients.card.colors[0],
+                                theme.gradients.card.colors[0],
+                              ],
+                              start: { x: 0, y: 0 },
+                              end: { x: 1, y: 0 },
+                            }
+                      )}
                       style={{
-                        fontSize: 14,
-                        fontWeight: "600",
-                        color:
+                        paddingHorizontal: 16,
+                        paddingVertical: 8,
+                        borderWidth: 1,
+                        borderColor:
                           activeFilter === filter.id
-                            ? theme.gradients.buttonPrimary.text
-                            : theme.gradients.card.text,
+                            ? "transparent"
+                            : theme.gradients.card.border,
+                        borderRadius: 20,
                       }}
                     >
-                      {filter.label}
-                    </Text>
-                  </LinearGradient>
-                </Pressable>
-              ))}
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "600",
+                          color:
+                            activeFilter === filter.id
+                              ? theme.gradients.buttonPrimary.text
+                              : theme.gradients.card.text,
+                        }}
+                      >
+                        {filter.label} ({count})
+                      </Text>
+                    </LinearGradient>
+                  </Pressable>
+                );
+              })}
             </View>
           </ScrollView>
 
-          {/* Tickets List */}
+          {/* Bookings List */}
           <View style={{ paddingHorizontal: 20, marginBottom: 100 }}>
-            {filteredTickets.map((ticket) => (
-              <TicketCard
-                key={ticket.id}
-                ticket={ticket}
-                theme={theme}
-                getStatusColor={getStatusColor}
-              />
-            ))}
+            {filteredBookings.length > 0 ? (
+              filteredBookings.map((booking) => (
+                <TicketCard key={booking.id} booking={booking} />
+              ))
+            ) : (
+              <View
+                style={{
+                  padding: 40,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons
+                  name="ticket-outline"
+                  size={48}
+                  color={theme.gradients.background.text}
+                  style={{ opacity: 0.3, marginBottom: 16 }}
+                />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: theme.gradients.background.text,
+                    opacity: 0.6,
+                    textAlign: "center",
+                  }}
+                >
+                  No {activeFilter === "all" ? "" : activeFilter.toLowerCase()}{" "}
+                  bookings found
+                </Text>
+              </View>
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>

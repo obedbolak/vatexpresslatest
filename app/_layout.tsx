@@ -23,6 +23,14 @@ const AppNavigator = () => {
           name="screens/BookingScreen"
           options={{ headerShown: false }}
         />
+        <Stack.Screen
+          name="screens/BookingDetailsScreen"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/ScheduleScreen"
+          options={{ headerShown: false }}
+        />
         <Stack.Screen name="+not-found" />
       </Stack>
     </>

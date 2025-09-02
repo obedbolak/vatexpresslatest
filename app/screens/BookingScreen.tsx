@@ -1,5 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { Bus } from "@/db/busData";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
@@ -14,21 +15,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-
-interface Bus {
-  id: string;
-  routeCity: string;
-  routeDestination: string;
-  departure: string[];
-  arrival: string;
-  price: number;
-  duration: string;
-  busType: string;
-  seatsAvailable: number;
-  image: string;
-  departureTime: string;
-  arrivalTime: string;
-}
 
 interface Location {
   id: string;
@@ -86,6 +72,27 @@ const BookingScreen = () => {
   const [paymentMethod, setPaymentMethod] = useState<
     "mobile" | "card" | "cash"
   >("mobile");
+  const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
+
+  // Update the handleSeatSelect function
+  const handleSeatSelect = (seatNumber: string) => {
+    if (seatMap[seatNumber].isOccupied) return;
+
+    const newSeatMap = { ...seatMap };
+    const isCurrentlySelected = selectedSeats.includes(seatNumber);
+
+    if (isCurrentlySelected) {
+      // Deselect the seat
+      newSeatMap[seatNumber].isSelected = false;
+      setSelectedSeats(selectedSeats.filter((seat) => seat !== seatNumber));
+    } else {
+      // Select the seat
+      newSeatMap[seatNumber].isSelected = true;
+      setSelectedSeats([...selectedSeats, seatNumber]);
+    }
+
+    setSeatMap(newSeatMap);
+  };
 
   // Handle back navigation
   const handleBack = () => {
@@ -113,25 +120,10 @@ const BookingScreen = () => {
 
   const [seatMap, setSeatMap] = useState<SeatMap>(generateSeatMap());
 
-  const handleSeatSelect = (seatNumber: string) => {
-    if (seatMap[seatNumber].isOccupied) return;
-
-    const newSeatMap = { ...seatMap };
-
-    // Deselect previously selected seat
-    if (selectedSeat) {
-      newSeatMap[selectedSeat].isSelected = false;
-    }
-
-    // Select new seat
-    newSeatMap[seatNumber].isSelected = true;
-    setSelectedSeat(seatNumber);
-    setSeatMap(newSeatMap);
-  };
-
+  // Update validation in handleNextStep
   const handleNextStep = () => {
-    if (currentStep === 1 && !selectedSeat) {
-      Alert.alert("Select Seat", "Please select a seat to continue");
+    if (currentStep === 1 && selectedSeats.length === 0) {
+      Alert.alert("Select Seat", "Please select at least one seat to continue");
       return;
     }
 
@@ -153,10 +145,18 @@ const BookingScreen = () => {
     }
   };
 
+  // Update the confirmation alert
   const handleConfirmBooking = () => {
+    const seatText =
+      selectedSeats.length === 1
+        ? `seat ${selectedSeats[0]}`
+        : `seats ${selectedSeats.join(", ")}`;
+
     Alert.alert(
       "Booking Confirmed!",
-      `Your seat ${selectedSeat} has been booked successfully. You will receive a confirmation SMS shortly.`,
+      `Your ${seatText} ${
+        selectedSeats.length === 1 ? "has" : "have"
+      } been booked successfully. You will receive a confirmation SMS shortly.`,
       [
         {
           text: "OK",
@@ -165,7 +165,6 @@ const BookingScreen = () => {
       ]
     );
   };
-
   const renderStepIndicator = () => (
     <View
       style={{
@@ -239,7 +238,6 @@ const BookingScreen = () => {
       >
         Select Your Seat
       </Text>
-
       {/* Bus Layout */}
       <View
         style={{
@@ -378,7 +376,6 @@ const BookingScreen = () => {
           ))}
         </View>
       </View>
-
       {/* Seat Legend */}
       <View
         style={{
@@ -438,9 +435,9 @@ const BookingScreen = () => {
           </Text>
         </View>
       </View>
+      {/* Selected Seat Info Update the seat selection display */}
 
-      {/* Selected Seat Info */}
-      {selectedSeat && (
+      {selectedSeats.length > 0 && (
         <LinearGradient
           colors={theme.gradients.card.colors}
           start={theme.gradients.card.start}
@@ -461,7 +458,10 @@ const BookingScreen = () => {
               textAlign: "center",
             }}
           >
-            Selected: Seat {selectedSeat}
+            Selected:{" "}
+            {selectedSeats.length === 1
+              ? `Seat ${selectedSeats[0]}`
+              : `${selectedSeats.length} Seats (${selectedSeats.join(", ")})`}
           </Text>
         </LinearGradient>
       )}
@@ -858,12 +858,38 @@ const BookingScreen = () => {
             style={{ flexDirection: "row", justifyContent: "space-between" }}
           >
             <Text style={{ color: theme.gradients.card.text, opacity: 0.7 }}>
-              Seat
+              Seat{selectedSeats.length > 1 ? "s" : ""}
             </Text>
             <Text
               style={{ color: theme.gradients.card.text, fontWeight: "600" }}
             >
-              {selectedSeat || "Not selected"}
+              {selectedSeats.length > 0
+                ? selectedSeats.join(", ")
+                : "Not selected"}
+            </Text>
+          </View>
+          <View
+            style={{ flexDirection: "row", justifyContent: "space-between" }}
+          >
+            <Text style={{ color: theme.gradients.card.text, opacity: 0.7 }}>
+              Number of Seats
+            </Text>
+            <Text
+              style={{ color: theme.gradients.card.text, fontWeight: "600" }}
+            >
+              {selectedSeats.length}
+            </Text>
+          </View>
+          <View
+            style={{ flexDirection: "row", justifyContent: "space-between" }}
+          >
+            <Text style={{ color: theme.gradients.card.text, opacity: 0.7 }}>
+              Price per Seat
+            </Text>
+            <Text
+              style={{ color: theme.gradients.card.text, fontWeight: "600" }}
+            >
+              {bus.price.toLocaleString()}CFA
             </Text>
           </View>
           <View
@@ -914,7 +940,7 @@ const BookingScreen = () => {
             <Text
               style={{ color: theme.tint, fontSize: 20, fontWeight: "800" }}
             >
-              {bus.price.toLocaleString()}CFA
+              {(bus.price * selectedSeats.length).toLocaleString()}CFA
             </Text>
           </View>
         </View>
@@ -1030,7 +1056,7 @@ const BookingScreen = () => {
                       color: theme.tint,
                     }}
                   >
-                    {bus.price.toLocaleString()}CFA
+                    {bus.price * selectedSeats.length}CFA
                   </Text>
                 </View>
               </View>
