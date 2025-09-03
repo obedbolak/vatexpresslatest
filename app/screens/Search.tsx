@@ -1,5 +1,5 @@
 import { useTheme } from "@/contexts/ThemeContext";
-import { baseBuses, Bus } from "@/db/busData";
+import { baseBuses, Bus, getDepartureWithAvailability } from "@/db/busData";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -8,13 +8,13 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Modal,
   Pressable,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import LocationDropdown from "../../components/LocationDropdown";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -26,6 +26,38 @@ interface Location {
   popular?: boolean;
 }
 
+// Define the 4 main cities
+const MAIN_CITIES = [
+  {
+    id: "1",
+    name: "Yaoundé",
+    region: "Centre",
+    type: "city" as const,
+    popular: true,
+  },
+  {
+    id: "2",
+    name: "Douala",
+    region: "Littoral",
+    type: "city" as const,
+    popular: true,
+  },
+  {
+    id: "3",
+    name: "Bamenda",
+    region: "Northwest",
+    type: "city" as const,
+    popular: true,
+  },
+  {
+    id: "4",
+    name: "Buea",
+    region: "Southwest",
+    type: "city" as const,
+    popular: true,
+  },
+];
+
 interface DayData {
   date: Date;
   dayName: string;
@@ -33,12 +65,22 @@ interface DayData {
   buses: Bus[];
 }
 
+type BusType = "Classic" | "VIP" | null;
+
+// Enhanced Bus interface for filtered results
+interface FilteredBus extends Bus {
+  selectedBusType: "Classic" | "VIP";
+  displayPrice: number;
+  specificDestination: string;
+  totalAvailableSeats: number;
+  bestDeparturePoint: string;
+}
+
 // Generate mock data for the week
 const generateWeekData = (): DayData[] => {
   const today = new Date();
   const weekData: DayData[] = [];
 
-  // Generate data for 7 days starting from today
   for (let i = 0; i < 7; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
@@ -55,19 +97,11 @@ const generateWeekData = (): DayData[] => {
         ? "Tomorrow"
         : date.toLocaleDateString("en-US", { weekday: "short" });
 
-    // Simulate different bus availability for different days
-    const availableBuses = baseBuses
-      .filter((_, index) => {
-        // Today: all buses
-        if (i === 0) return true;
-        // Other days: simulate some buses not available
-        return (index + i) % 3 !== 0;
-      })
-      .map((bus) => ({
-        ...bus,
-        id: `${bus.id}-day${i}`,
-        seatsAvailable: Math.max(1, bus.seatsAvailable - i * 2),
-      }));
+    // Use actual buses from database
+    const availableBuses = baseBuses.map((bus) => ({
+      ...bus,
+      id: `${bus.id}-day${i}`,
+    }));
 
     weekData.push({
       date,
@@ -80,13 +114,164 @@ const generateWeekData = (): DayData[] => {
   return weekData;
 };
 
+// Custom Location Dropdown for the 4 cities
+const CityDropdown: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  onLocationSelect: (location: Location) => void;
+  selectedLocation: Location | null;
+  title: string;
+}> = ({ visible, onClose, onLocationSelect, selectedLocation, title }) => {
+  const { theme } = useTheme();
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0, 0, 0, 0.5)",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+        onPress={onClose}
+      >
+        <View
+          style={{
+            backgroundColor: theme.gradients.card.colors[0],
+            borderRadius: 20,
+            padding: 20,
+            width: "85%",
+            maxWidth: 350,
+            borderWidth: 1,
+            borderColor: theme.gradients.card.border,
+            maxHeight: "60%",
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "700",
+              color: theme.gradients.card.text,
+              marginBottom: 20,
+              textAlign: "center",
+            }}
+          >
+            {title}
+          </Text>
+
+          {/* All Cities Option */}
+          <Pressable
+            onPress={() => {
+              onLocationSelect(null as any);
+              onClose();
+            }}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingVertical: 15,
+              paddingHorizontal: 15,
+              borderRadius: 12,
+              marginBottom: 10,
+              backgroundColor:
+                selectedLocation === null ? theme.tint + "20" : "transparent",
+            }}
+          >
+            <Ionicons
+              name="globe-outline"
+              size={20}
+              color={theme.gradients.card.text}
+              style={{ marginRight: 12 }}
+            />
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: "600",
+                color: theme.gradients.card.text,
+                flex: 1,
+              }}
+            >
+              All Cities
+            </Text>
+            {selectedLocation === null && (
+              <Ionicons name="checkmark" size={20} color={theme.tint} />
+            )}
+          </Pressable>
+
+          {/* City Options */}
+          {MAIN_CITIES.map((city) => (
+            <Pressable
+              key={city.id}
+              onPress={() => {
+                onLocationSelect(city);
+                onClose();
+              }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 15,
+                paddingHorizontal: 15,
+                borderRadius: 12,
+                marginBottom: 10,
+                backgroundColor:
+                  selectedLocation?.id === city.id
+                    ? theme.tint + "20"
+                    : "transparent",
+              }}
+            >
+              <Ionicons
+                name="location"
+                size={20}
+                color={theme.gradients.card.text}
+                style={{ marginRight: 12 }}
+              />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.gradients.card.text,
+                  }}
+                >
+                  {city.name}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: theme.gradients.card.text,
+                    opacity: 0.6,
+                  }}
+                >
+                  {city.region} Region
+                </Text>
+              </View>
+              {selectedLocation?.id === city.id && (
+                <Ionicons name="checkmark" size={20} color={theme.tint} />
+              )}
+            </Pressable>
+          ))}
+        </View>
+      </Pressable>
+    </Modal>
+  );
+};
+
 const SearchScreen = () => {
   const { theme, isDark } = useTheme();
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [showDestinationDropdown, setShowDestinationDropdown] = useState(false);
+  const [showBusTypeDropdown, setShowBusTypeDropdown] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(
     null
   );
+  const [selectedDestination, setSelectedDestination] =
+    useState<Location | null>(null);
+  const [selectedBusType, setSelectedBusType] = useState<BusType>(null);
   const weekData = generateWeekData();
 
   const formatDate = (date: Date) => {
@@ -98,29 +283,134 @@ const SearchScreen = () => {
 
   const handleLocationSelect = (location: Location) => {
     setSelectedLocation(location);
-    console.log("Selected location:", location);
   };
 
-  // Filter buses based on selected location
+  const handleDestinationSelect = (destination: Location) => {
+    setSelectedDestination(destination);
+  };
+
+  const handleBusTypeSelect = (busType: BusType) => {
+    setSelectedBusType(busType);
+    setShowBusTypeDropdown(false);
+  };
+
+  // Enhanced filter buses with proper destination expansion and seat calculation
   const filteredBuses = useMemo(() => {
     const dayBuses = weekData[selectedDayIndex]?.buses || [];
+    let filtered: FilteredBus[] = [];
 
-    if (!selectedLocation) {
-      return dayBuses;
+    // Create entries for each bus type and each destination
+    dayBuses.forEach((bus) => {
+      // For each destination in the bus route
+      bus.routeDestination.forEach((destination) => {
+        // Check if bus has Classic type
+        if (bus.busType.includes("Classic")) {
+          // Calculate total available seats for Classic across all departure points
+          const departuresWithAvailability = getDepartureWithAvailability(bus);
+          const totalClassicSeats = departuresWithAvailability.reduce(
+            (total, dept) => total + dept.availableSeats.Classic,
+            0
+          );
+
+          // Find the departure point with most available Classic seats
+          const bestDeparture = departuresWithAvailability.reduce(
+            (best, current) =>
+              current.availableSeats.Classic > best.availableSeats.Classic
+                ? current
+                : best
+          );
+
+          filtered.push({
+            ...bus,
+            id: `${bus.id}-classic-${destination.replace(/\s+/g, "")}`,
+            selectedBusType: "Classic",
+            displayPrice: bus.price.CL,
+            specificDestination: destination,
+            totalAvailableSeats: totalClassicSeats,
+            bestDeparturePoint: bestDeparture.location,
+          });
+        }
+
+        // Check if bus has VIP type
+        if (bus.busType.includes("VIP")) {
+          // Calculate total available seats for VIP across all departure points
+          const departuresWithAvailability = getDepartureWithAvailability(bus);
+          const totalVIPSeats = departuresWithAvailability.reduce(
+            (total, dept) => total + dept.availableSeats.VIP,
+            0
+          );
+
+          // Find the departure point with most available VIP seats
+          const bestDeparture = departuresWithAvailability.reduce(
+            (best, current) =>
+              current.availableSeats.VIP > best.availableSeats.VIP
+                ? current
+                : best
+          );
+
+          filtered.push({
+            ...bus,
+            id: `${bus.id}-vip-${destination.replace(/\s+/g, "")}`,
+            selectedBusType: "VIP",
+            displayPrice: bus.price.VIP,
+            specificDestination: destination,
+            totalAvailableSeats: totalVIPSeats,
+            bestDeparturePoint: bestDeparture.location,
+          });
+        }
+      });
+    });
+
+    // Filter by departure location if selected
+    if (selectedLocation) {
+      filtered = filtered.filter(
+        (bus) =>
+          bus.routeCity.toLowerCase() === selectedLocation.name.toLowerCase()
+      );
     }
 
-    // Filter buses that start from the selected location
-    return dayBuses.filter(
-      (bus) =>
-        bus.routeCity.toLowerCase() === selectedLocation.name.toLowerCase()
-    );
-  }, [weekData, selectedDayIndex, selectedLocation]);
+    // Filter by destination if selected
+    if (selectedDestination) {
+      filtered = filtered.filter(
+        (bus) =>
+          bus.specificDestination.toLowerCase() ===
+          selectedDestination.name.toLowerCase()
+      );
+    }
 
-  const handleBookNow = (bus: Bus) => {
+    // Filter by bus type if selected
+    if (selectedBusType) {
+      filtered = filtered.filter(
+        (bus) => bus.selectedBusType === selectedBusType
+      );
+    }
+
+    // Filter out buses with no available seats
+    filtered = filtered.filter((bus) => bus.totalAvailableSeats > 0);
+
+    return filtered;
+  }, [
+    weekData,
+    selectedDayIndex,
+    selectedLocation,
+    selectedDestination,
+    selectedBusType,
+  ]);
+
+  const handleBookNow = (bus: FilteredBus) => {
     router.push({
       pathname: "/screens/BookingScreen",
       params: {
-        busData: JSON.stringify(bus),
+        busData: JSON.stringify({
+          ...bus,
+          // Remove the enhanced properties to avoid confusion
+          selectedBusType: undefined,
+          specificDestination: undefined,
+          totalAvailableSeats: undefined,
+          bestDeparturePoint: undefined,
+        }),
+        selectedBusType: bus.selectedBusType,
+        selectedDestination: bus.specificDestination,
         selectedLocationData: selectedLocation
           ? JSON.stringify(selectedLocation)
           : "",
@@ -132,11 +422,13 @@ const SearchScreen = () => {
   };
 
   // Fixed renderItem function for FlatList
-  const renderBusCard = ({ item }: { item: Bus }) => (
+  const renderBusCard = ({ item }: { item: FilteredBus }) => (
     <BusListCard
       bus={item}
       theme={theme}
       selectedLocation={selectedLocation}
+      selectedDestination={selectedDestination}
+      selectedBusType={selectedBusType}
       onBookNow={() => handleBookNow(item)}
     />
   );
@@ -172,7 +464,7 @@ const SearchScreen = () => {
           >
             {selectedLocation
               ? `Buses from ${selectedLocation.name}`
-              : "All Buses"}
+              : "All Routes"}
           </Text>
         </View>
       </View>
@@ -269,17 +561,14 @@ const SearchScreen = () => {
         </ScrollView>
       </View>
 
-      {/* Selected Day Info */}
+      {/* Selected Day Info and Filters */}
       <View
         style={{
           paddingHorizontal: 20,
           paddingBottom: 16,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
         }}
       >
-        <View style={{ flex: 1 }}>
+        <View style={{ marginBottom: 16 }}>
           <Text
             style={{
               fontSize: 18,
@@ -297,106 +586,340 @@ const SearchScreen = () => {
               opacity: 0.7,
             }}
           >
-            {filteredBuses.length} buses available
+            {filteredBuses.length} option{filteredBuses.length !== 1 ? "s" : ""}{" "}
+            available
             {selectedLocation && ` from ${selectedLocation.name}`}
+            {selectedDestination && ` to ${selectedDestination.name}`}
+            {selectedBusType && ` (${selectedBusType})`}
           </Text>
         </View>
 
-        {/* Location Selector Button */}
-        <TouchableOpacity
-          onPress={() => setShowLocationDropdown(true)}
+        {/* Filter Buttons Row */}
+        <View
           style={{
             flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: theme.gradients.card.colors[0],
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: theme.gradients.card.border,
-            maxWidth: 160,
-            shadowColor: "#000",
-            shadowOffset: {
-              width: 0,
-              height: 1,
-            },
-            shadowOpacity: 0.22,
-            shadowRadius: 2.22,
-            elevation: 3,
+            justifyContent: "space-between",
+            gap: 8,
           }}
         >
-          <Ionicons
-            name="location-outline"
-            size={18}
-            color={theme.gradients.background.text}
-          />
-          <Text
+          {/* Departure City Selector */}
+          <TouchableOpacity
+            onPress={() => setShowLocationDropdown(true)}
             style={{
-              fontSize: 13,
-              fontWeight: "600",
-              color: theme.gradients.background.text,
-              marginLeft: 6,
-              marginRight: 4,
               flex: 1,
-            }}
-            numberOfLines={1}
-          >
-            {selectedLocation ? selectedLocation.name : "Select Location"}
-          </Text>
-          <Ionicons
-            name="chevron-down"
-            size={14}
-            color={theme.gradients.background.text}
-            style={{ opacity: 0.6 }}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Location Filter Badge */}
-      {selectedLocation && (
-        <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-          <View
-            style={{
               flexDirection: "row",
               alignItems: "center",
-              backgroundColor: theme.tint + "15",
+              backgroundColor: theme.gradients.card.colors[0],
               paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 20,
-              alignSelf: "flex-start",
+              paddingVertical: 12,
+              borderRadius: 12,
               borderWidth: 1,
-              borderColor: theme.tint + "30",
+              borderColor: selectedLocation
+                ? theme.tint + "50"
+                : theme.gradients.card.border,
+              shadowColor: "#000",
+              shadowOffset: {
+                width: 0,
+                height: 1,
+              },
+              shadowOpacity: 0.22,
+              shadowRadius: 2.22,
+              elevation: 3,
             }}
           >
-            <Ionicons name="location" size={16} color={theme.tint} />
+            <Ionicons
+              name="location-outline"
+              size={16}
+              color={
+                selectedLocation ? theme.tint : theme.gradients.background.text
+              }
+            />
             <Text
               style={{
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: "600",
-                color: theme.tint,
+                color: selectedLocation
+                  ? theme.tint
+                  : theme.gradients.background.text,
                 marginLeft: 6,
-                marginRight: 8,
+                marginRight: 4,
+                flex: 1,
               }}
+              numberOfLines={1}
             >
-              {selectedLocation.name}
+              {selectedLocation ? selectedLocation.name : "From"}
             </Text>
-            <Pressable
-              onPress={() => setSelectedLocation(null)}
+            <Ionicons
+              name="chevron-down"
+              size={12}
+              color={
+                selectedLocation ? theme.tint : theme.gradients.background.text
+              }
+              style={{ opacity: 0.6 }}
+            />
+          </TouchableOpacity>
+
+          {/* Destination City Selector */}
+          <TouchableOpacity
+            onPress={() => setShowDestinationDropdown(true)}
+            style={{
+              flex: 1,
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: theme.gradients.card.colors[0],
+              paddingHorizontal: 12,
+              paddingVertical: 12,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: selectedDestination
+                ? theme.tint + "50"
+                : theme.gradients.card.border,
+              shadowColor: "#000",
+              shadowOffset: {
+                width: 0,
+                height: 1,
+              },
+              shadowOpacity: 0.22,
+              shadowRadius: 2.22,
+              elevation: 3,
+            }}
+          >
+            <Ionicons
+              name="flag-outline"
+              size={16}
+              color={
+                selectedDestination
+                  ? theme.tint
+                  : theme.gradients.background.text
+              }
+            />
+            <Text
               style={{
-                width: 20,
-                height: 20,
-                borderRadius: 10,
-                backgroundColor: theme.tint,
-                justifyContent: "center",
-                alignItems: "center",
+                fontSize: 12,
+                fontWeight: "600",
+                color: selectedDestination
+                  ? theme.tint
+                  : theme.gradients.background.text,
+                marginLeft: 6,
+                marginRight: 4,
+                flex: 1,
               }}
+              numberOfLines={1}
             >
-              <Ionicons
-                name="close"
-                size={12}
-                color={isDark ? "black" : "#000"}
-              />
-            </Pressable>
+              {selectedDestination ? selectedDestination.name : "To"}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={12}
+              color={
+                selectedDestination
+                  ? theme.tint
+                  : theme.gradients.background.text
+              }
+              style={{ opacity: 0.6 }}
+            />
+          </TouchableOpacity>
+
+          {/* Bus Type Selector */}
+          <TouchableOpacity
+            onPress={() => setShowBusTypeDropdown(true)}
+            style={{
+              flex: 1,
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: theme.gradients.card.colors[0],
+              paddingHorizontal: 12,
+              paddingVertical: 12,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: selectedBusType
+                ? theme.tint + "50"
+                : theme.gradients.card.border,
+              shadowColor: "#000",
+              shadowOffset: {
+                width: 0,
+                height: 1,
+              },
+              shadowOpacity: 0.22,
+              shadowRadius: 2.22,
+              elevation: 3,
+            }}
+          >
+            <Ionicons
+              name="bus-outline"
+              size={16}
+              color={
+                selectedBusType ? theme.tint : theme.gradients.background.text
+              }
+            />
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "600",
+                color: selectedBusType
+                  ? theme.tint
+                  : theme.gradients.background.text,
+                marginLeft: 6,
+                marginRight: 4,
+                flex: 1,
+              }}
+              numberOfLines={1}
+            >
+              {selectedBusType || "Type"}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={12}
+              color={
+                selectedBusType ? theme.tint : theme.gradients.background.text
+              }
+              style={{ opacity: 0.6 }}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Filter Badges */}
+      {(selectedLocation || selectedDestination || selectedBusType) && (
+        <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {/* Departure Location Badge */}
+            {selectedLocation && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: theme.tint + "15",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: theme.tint + "30",
+                }}
+              >
+                <Ionicons name="location" size={16} color={theme.tint} />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: theme.tint,
+                    marginLeft: 6,
+                    marginRight: 8,
+                  }}
+                >
+                  From {selectedLocation.name}
+                </Text>
+                <Pressable
+                  onPress={() => setSelectedLocation(null)}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: theme.tint,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons
+                    name="close"
+                    size={12}
+                    color={isDark ? "black" : "#000"}
+                  />
+                </Pressable>
+              </View>
+            )}
+
+            {/* Destination Badge */}
+            {selectedDestination && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: theme.tint + "15",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: theme.tint + "30",
+                }}
+              >
+                <Ionicons name="flag" size={16} color={theme.tint} />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: theme.tint,
+                    marginLeft: 6,
+                    marginRight: 8,
+                  }}
+                >
+                  To {selectedDestination.name}
+                </Text>
+                <Pressable
+                  onPress={() => setSelectedDestination(null)}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: theme.tint,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons
+                    name="close"
+                    size={12}
+                    color={isDark ? "black" : "#000"}
+                  />
+                </Pressable>
+              </View>
+            )}
+
+            {/* Bus Type Badge */}
+            {selectedBusType && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: theme.tint + "15",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: theme.tint + "30",
+                }}
+              >
+                <Ionicons name="bus" size={16} color={theme.tint} />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: theme.tint,
+                    marginLeft: 6,
+                    marginRight: 8,
+                  }}
+                >
+                  {selectedBusType}
+                </Text>
+                <Pressable
+                  onPress={() => setSelectedBusType(null)}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: theme.tint,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons
+                    name="close"
+                    size={12}
+                    color={isDark ? "black" : "#000"}
+                  />
+                </Pressable>
+              </View>
+            )}
           </View>
         </View>
       )}
@@ -461,10 +984,12 @@ const SearchScreen = () => {
               lineHeight: 24,
             }}
           >
-            {selectedLocation
-              ? `No buses departing from ${selectedLocation.name} on ${weekData[
-                  selectedDayIndex
-                ].dayName.toLowerCase()}`
+            {selectedLocation || selectedBusType || selectedDestination
+              ? `No ${selectedBusType || ""} buses${
+                  selectedLocation ? ` from ${selectedLocation.name}` : ""
+                }${
+                  selectedDestination ? ` to ${selectedDestination.name}` : ""
+                } on ${weekData[selectedDayIndex].dayName.toLowerCase()}`
               : `No buses scheduled for ${weekData[
                   selectedDayIndex
                 ].dayName.toLowerCase()}`}
@@ -473,22 +998,180 @@ const SearchScreen = () => {
       )}
 
       {/* Location Dropdown Modal */}
-      <LocationDropdown
+      <CityDropdown
         visible={showLocationDropdown}
         onClose={() => setShowLocationDropdown(false)}
         onLocationSelect={handleLocationSelect}
         selectedLocation={selectedLocation}
-        title="Select Departure Location"
-        placeholder="Search for cities, stations..."
+        title="Select Departure City"
       />
+
+      {/* Destination Dropdown Modal */}
+      <CityDropdown
+        visible={showDestinationDropdown}
+        onClose={() => setShowDestinationDropdown(false)}
+        onLocationSelect={handleDestinationSelect}
+        selectedLocation={selectedDestination}
+        title="Select Destination City"
+      />
+
+      {/* Bus Type Dropdown Modal */}
+      <Modal
+        visible={showBusTypeDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowBusTypeDropdown(false)}
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => setShowBusTypeDropdown(false)}
+        >
+          <View
+            style={{
+              backgroundColor: theme.gradients.card.colors[0],
+              borderRadius: 20,
+              padding: 20,
+              width: "80%",
+              maxWidth: 300,
+              borderWidth: 1,
+              borderColor: theme.gradients.card.border,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "700",
+                color: theme.gradients.card.text,
+                marginBottom: 20,
+                textAlign: "center",
+              }}
+            >
+              Select Bus Type
+            </Text>
+
+            {/* All Types Option */}
+            <Pressable
+              onPress={() => handleBusTypeSelect(null)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 15,
+                paddingHorizontal: 15,
+                borderRadius: 12,
+                marginBottom: 10,
+                backgroundColor:
+                  selectedBusType === null ? theme.tint + "20" : "transparent",
+              }}
+            >
+              <Ionicons
+                name="bus-outline"
+                size={20}
+                color={theme.gradients.card.text}
+                style={{ marginRight: 12 }}
+              />
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "600",
+                  color: theme.gradients.card.text,
+                  flex: 1,
+                }}
+              >
+                All Types
+              </Text>
+              {selectedBusType === null && (
+                <Ionicons name="checkmark" size={20} color={theme.tint} />
+              )}
+            </Pressable>
+
+            {/* Classic Option */}
+            <Pressable
+              onPress={() => handleBusTypeSelect("Classic")}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 15,
+                paddingHorizontal: 15,
+                borderRadius: 12,
+                marginBottom: 10,
+                backgroundColor:
+                  selectedBusType === "Classic"
+                    ? theme.tint + "20"
+                    : "transparent",
+              }}
+            >
+              <Ionicons
+                name="bus"
+                size={20}
+                color={theme.gradients.card.text}
+                style={{ marginRight: 12 }}
+              />
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "600",
+                  color: theme.gradients.card.text,
+                  flex: 1,
+                }}
+              >
+                Classic
+              </Text>
+              {selectedBusType === "Classic" && (
+                <Ionicons name="checkmark" size={20} color={theme.tint} />
+              )}
+            </Pressable>
+
+            {/* VIP Option */}
+            <Pressable
+              onPress={() => handleBusTypeSelect("VIP")}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 15,
+                paddingHorizontal: 15,
+                borderRadius: 12,
+                backgroundColor:
+                  selectedBusType === "VIP" ? theme.tint + "20" : "transparent",
+              }}
+            >
+              <Ionicons
+                name="star"
+                size={20}
+                color={theme.gradients.card.text}
+                style={{ marginRight: 12 }}
+              />
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "600",
+                  color: theme.gradients.card.text,
+                  flex: 1,
+                }}
+              >
+                VIP
+              </Text>
+              {selectedBusType === "VIP" && (
+                <Ionicons name="checkmark" size={20} color={theme.tint} />
+              )}
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </LinearGradient>
   );
 };
 
 interface BusListCardProps {
-  bus: Bus;
+  bus: FilteredBus;
   theme: any;
   selectedLocation: Location | null;
+  selectedDestination: Location | null;
+  selectedBusType: "Classic" | "VIP" | null;
   onBookNow: () => void;
 }
 
@@ -496,10 +1179,12 @@ const BusListCard: React.FC<BusListCardProps> = ({
   bus,
   theme,
   selectedLocation,
+  selectedDestination,
   onBookNow,
 }) => {
-  // Determine the departure city to display
+  // Use the specific destination for this card
   const departureCity = selectedLocation?.name || bus.routeCity;
+  const destinationText = bus.specificDestination;
 
   return (
     <LinearGradient
@@ -580,7 +1265,7 @@ const BusListCard: React.FC<BusListCardProps> = ({
                 }}
                 numberOfLines={1}
               >
-                {bus.routeDestination}
+                {destinationText}
               </Text>
             </View>
 
@@ -592,37 +1277,46 @@ const BusListCard: React.FC<BusListCardProps> = ({
               }}
             >
               <LinearGradient
-                colors={theme.gradients.buttonSecondary.colors}
+                colors={
+                  bus.selectedBusType === "VIP"
+                    ? ["#FFD700", "#FFA500"]
+                    : theme.gradients.buttonSecondary.colors
+                }
                 start={theme.gradients.buttonSecondary.start}
                 end={theme.gradients.buttonSecondary.end}
                 locations={theme.gradients.buttonSecondary.locations}
                 style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                  borderRadius: 8,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 6,
                   alignSelf: "flex-start",
                 }}
               >
                 <Text
                   style={{
-                    color: theme.gradients.buttonSecondary.text,
-                    fontSize: 11,
+                    color:
+                      bus.selectedBusType === "VIP"
+                        ? "#000"
+                        : theme.gradients.buttonSecondary.text,
+                    fontSize: 10,
                     fontWeight: "700",
                   }}
                 >
-                  {bus.busType}
+                  {bus.selectedBusType}
                 </Text>
               </LinearGradient>
 
-              <Text
-                style={{
-                  fontSize: 20,
-                  fontWeight: "800",
-                  color: theme.tint,
-                }}
-              >
-                {bus.price.toLocaleString()}CFA
-              </Text>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "800",
+                    color: theme.tint,
+                  }}
+                >
+                  {bus.displayPrice.toLocaleString()}CFA
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -697,7 +1391,7 @@ const BusListCard: React.FC<BusListCardProps> = ({
                   fontWeight: "500",
                 }}
               >
-                {bus.seatsAvailable} seats left
+                {bus.totalAvailableSeats} seats left
               </Text>
             </View>
 

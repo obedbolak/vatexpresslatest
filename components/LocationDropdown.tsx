@@ -24,6 +24,7 @@ interface Location {
   region: string;
   type: "city" | "region" | "station";
   popular?: boolean;
+  cityId?: string; // Add cityId for bus stations to map to their main city
 }
 
 interface LocationDropdownProps {
@@ -35,9 +36,9 @@ interface LocationDropdownProps {
   placeholder?: string;
 }
 
-// Cameroon locations data
-const CAMEROON_LOCATIONS: Location[] = [
-  // Popular Cities
+// Only the 4 supported cities and their bus stations
+const SUPPORTED_LOCATIONS: Location[] = [
+  // Main Cities (all popular)
   { id: "1", name: "Yaoundé", region: "Centre", type: "city", popular: true },
   { id: "2", name: "Douala", region: "Littoral", type: "city", popular: true },
   {
@@ -47,54 +48,93 @@ const CAMEROON_LOCATIONS: Location[] = [
     type: "city",
     popular: true,
   },
-  { id: "4", name: "Bafoussam", region: "Ouest", type: "city", popular: true },
-  { id: "5", name: "Garoua", region: "Nord", type: "city", popular: true },
-  { id: "6", name: "Bertoua", region: "Est", type: "city", popular: true },
+  { id: "4", name: "Buéa", region: "Sud-Ouest", type: "city", popular: true },
 
-  // Other Cities
-  { id: "7", name: "Buéa", region: "Sud-Ouest", type: "city" },
-  { id: "8", name: "Limbe", region: "Sud-Ouest", type: "city" },
-  { id: "9", name: "Kumba", region: "Sud-Ouest", type: "city" },
-  { id: "10", name: "Dschang", region: "Ouest", type: "city" },
-  { id: "11", name: "Bandjoun", region: "Ouest", type: "city" },
-  { id: "12", name: "Mbouda", region: "Ouest", type: "city" },
-  { id: "13", name: "Kumbo", region: "Nord-Ouest", type: "city" },
-  { id: "14", name: "Wum", region: "Nord-Ouest", type: "city" },
-  { id: "15", name: "Ngaoundéré", region: "Nord", type: "city" },
-  { id: "16", name: "Maroua", region: "Extrême-Nord", type: "city" },
-  { id: "17", name: "Mokolo", region: "Extrême-Nord", type: "city" },
-  { id: "18", name: "Kousseri", region: "Extrême-Nord", type: "city" },
-  { id: "19", name: "Ebolowa", region: "Sud", type: "city" },
-  { id: "20", name: "Kribi", region: "Sud", type: "city" },
-  { id: "21", name: "Sangmélima", region: "Sud", type: "city" },
-  { id: "22", name: "Ambam", region: "Sud", type: "city" },
-  { id: "23", name: "Batouri", region: "Est", type: "city" },
-  { id: "24", name: "Yokadouma", region: "Est", type: "city" },
-  { id: "25", name: "Mbalmayo", region: "Centre", type: "city" },
-  { id: "26", name: "Akonolinga", region: "Centre", type: "city" },
-  { id: "27", name: "Edéa", region: "Littoral", type: "city" },
-  { id: "28", name: "Nkongsamba", region: "Littoral", type: "city" },
-
-  // Bus Stations
+  // Bus Stations for the supported cities (with cityId mapping)
   {
-    id: "29",
+    id: "5",
     name: "Gare Routière Mvog-Ada",
     region: "Centre",
     type: "station",
+    cityId: "1", // Maps to Yaoundé
   },
   {
-    id: "30",
+    id: "6",
+    name: "Gare Routière Yaoundé",
+    region: "Centre",
+    type: "station",
+    cityId: "1", // Maps to Yaoundé
+  },
+  {
+    id: "7",
+    name: "Biyem-Assi Station",
+    region: "Centre",
+    type: "station",
+    cityId: "1", // Maps to Yaoundé
+  },
+  {
+    id: "8",
     name: "Gare Routière Bonabéri",
     region: "Littoral",
     type: "station",
+    cityId: "2", // Maps to Douala
   },
   {
-    id: "31",
+    id: "9",
+    name: "Douala International Airport",
+    region: "Littoral",
+    type: "station",
+    cityId: "2", // Maps to Douala
+  },
+  {
+    id: "10",
+    name: "Makepe Station",
+    region: "Littoral",
+    type: "station",
+    cityId: "2", // Maps to Douala
+  },
+  {
+    id: "11",
     name: "Commercial Avenue Motor Park",
     region: "Nord-Ouest",
     type: "station",
+    cityId: "3", // Maps to Bamenda
   },
-  { id: "32", name: "Bafoussam Motor Park", region: "Ouest", type: "station" },
+  {
+    id: "12",
+    name: "Bamenda Central Station",
+    region: "Nord-Ouest",
+    type: "station",
+    cityId: "3", // Maps to Bamenda
+  },
+  {
+    id: "13",
+    name: "Up Station Bamenda",
+    region: "Nord-Ouest",
+    type: "station",
+    cityId: "3", // Maps to Bamenda
+  },
+  {
+    id: "14",
+    name: "Buea Motor Park",
+    region: "Sud-Ouest",
+    type: "station",
+    cityId: "4", // Maps to Buéa
+  },
+  {
+    id: "15",
+    name: "Buea Central Station",
+    region: "Sud-Ouest",
+    type: "station",
+    cityId: "4", // Maps to Buéa
+  },
+  {
+    id: "16",
+    name: "Mile 16 Station",
+    region: "Sud-Ouest",
+    type: "station",
+    cityId: "4", // Maps to Buéa
+  },
 ];
 
 const LocationDropdown: React.FC<LocationDropdownProps> = ({
@@ -103,12 +143,12 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
   onLocationSelect,
   selectedLocation,
   title = "Select Location",
-  placeholder = "Search for a city or station...",
+  placeholder = "Search for cities or stations...",
 }) => {
   const { theme, isDark } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredLocations, setFilteredLocations] =
-    useState(CAMEROON_LOCATIONS);
+    useState(SUPPORTED_LOCATIONS);
   const [animatedValue] = useState(new Animated.Value(0));
 
   useEffect(() => {
@@ -131,9 +171,9 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
-      setFilteredLocations(CAMEROON_LOCATIONS);
+      setFilteredLocations(SUPPORTED_LOCATIONS);
     } else {
-      const filtered = CAMEROON_LOCATIONS.filter(
+      const filtered = SUPPORTED_LOCATIONS.filter(
         (location) =>
           location.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           location.region.toLowerCase().includes(searchQuery.toLowerCase())
@@ -142,10 +182,25 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
     }
   }, [searchQuery]);
 
-  const popularLocations = CAMEROON_LOCATIONS.filter((loc) => loc.popular);
+  const popularLocations = SUPPORTED_LOCATIONS.filter((loc) => loc.popular);
+  const stationLocations = SUPPORTED_LOCATIONS.filter(
+    (loc) => loc.type === "station"
+  );
 
   const handleLocationSelect = (location: Location) => {
-    onLocationSelect(location);
+    let selectedLocation = location;
+
+    // If a bus station is selected, map it to its corresponding main city
+    if (location.type === "station" && location.cityId) {
+      const mainCity = SUPPORTED_LOCATIONS.find(
+        (loc) => loc.id === location.cityId && loc.type === "city"
+      );
+      if (mainCity) {
+        selectedLocation = mainCity;
+      }
+    }
+
+    onLocationSelect(selectedLocation);
     setSearchQuery("");
     onClose();
   };
@@ -169,6 +224,22 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
     }
   };
 
+  const isLocationSelected = (item: Location) => {
+    if (!selectedLocation) return false;
+
+    // If the item is a city, check if it's directly selected
+    if (item.type === "city") {
+      return selectedLocation.id === item.id;
+    }
+
+    // If the item is a station, check if its corresponding city is selected
+    if (item.type === "station" && item.cityId) {
+      return selectedLocation.id === item.cityId;
+    }
+
+    return false;
+  };
+
   const renderLocationItem = ({ item }: { item: Location }) => (
     <Pressable
       onPress={() => handleLocationSelect(item)}
@@ -179,6 +250,9 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
         paddingHorizontal: 20,
         borderBottomWidth: 1,
         borderBottomColor: theme.gradients.card.border + "30",
+        backgroundColor: isLocationSelected(item)
+          ? theme.tint + "10"
+          : "transparent",
       }}
     >
       <View
@@ -227,7 +301,7 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
                   color: isDark ? theme.tint : theme.tint + "60",
                 }}
               >
-                POPULAR
+                MAIN CITY
               </Text>
             </View>
           )}
@@ -240,16 +314,17 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
             marginTop: 2,
           }}
         >
-          {item.region} .
-          {item.type === "city"
-            ? "City"
-            : item.type === "station"
-            ? "Bus Station"
-            : "Region"}
+          {item.region} • {item.type === "city" ? "City" : "Bus Station"}
+          {item.type === "station" && item.cityId && (
+            <Text style={{ fontWeight: "600", opacity: 0.9 }}>
+              {" → "}
+              {SUPPORTED_LOCATIONS.find((loc) => loc.id === item.cityId)?.name}
+            </Text>
+          )}
         </Text>
       </View>
 
-      {selectedLocation?.id === item.id && (
+      {isLocationSelected(item) && (
         <Ionicons name="checkmark-circle" size={24} color={theme.tint} />
       )}
     </Pressable>
@@ -268,7 +343,7 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
               paddingHorizontal: 20,
             }}
           >
-            Popular Destinations
+            Main Cities
           </Text>
           {popularLocations.map((location) => (
             <View key={location.id}>
@@ -276,7 +351,7 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
             </View>
           ))}
 
-          {filteredLocations.length > popularLocations.length && (
+          {stationLocations.length > 0 && (
             <Text
               style={{
                 fontSize: 16,
@@ -287,7 +362,7 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
                 paddingHorizontal: 20,
               }}
             >
-              All Locations
+              Bus Stations
             </Text>
           )}
         </View>
@@ -340,7 +415,7 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
           marginTop: 12,
         }}
       >
-        Can't find your location? We'll add it soon!
+        We operate between Yaoundé, Douala, Bamenda & Buéa
       </Text>
     </View>
   );
@@ -486,11 +561,7 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
 
               {/* Locations List */}
               <FlatList
-                data={
-                  searchQuery === ""
-                    ? filteredLocations.filter((loc) => !loc.popular)
-                    : filteredLocations
-                }
+                data={searchQuery === "" ? stationLocations : filteredLocations}
                 renderItem={renderLocationItem}
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
@@ -525,9 +596,11 @@ const LocationDropdown: React.FC<LocationDropdownProps> = ({
                         color: theme.gradients.card.text,
                         opacity: 0.6,
                         textAlign: "center",
+                        paddingHorizontal: 20,
                       }}
                     >
-                      Try adjusting your search terms
+                      We currently operate between Yaoundé, Douala, Bamenda, and
+                      Buéa
                     </Text>
                   </View>
                 )}

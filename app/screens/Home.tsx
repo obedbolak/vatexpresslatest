@@ -1,6 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { baseBuses, Bus } from "@/db/busData";
+import { baseBuses, Bus, getDepartureWithAvailability } from "@/db/busData";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   Image,
+  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -15,6 +16,7 @@ import {
 } from "react-native";
 
 import { alertsData, Booking, bookingsData } from "@/db/busData";
+
 export interface QuickActionCardProps {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
@@ -37,10 +39,50 @@ interface DayData {
   buses: Bus[];
 }
 
+// Enhanced Bus interface for filtered results
+interface FilteredBus extends Bus {
+  selectedBusType: "Classic" | "VIP";
+  displayPrice: number;
+  specificDestination: string;
+  totalAvailableSeats: number;
+  bestDeparturePoint: string;
+}
+
+// Define the 4 main cities
+const MAIN_CITIES = [
+  {
+    id: "1",
+    name: "Yaoundé",
+    region: "Centre",
+    type: "city" as const,
+    popular: true,
+  },
+  {
+    id: "2",
+    name: "Douala",
+    region: "Littoral",
+    type: "city" as const,
+    popular: true,
+  },
+  {
+    id: "3",
+    name: "Bamenda",
+    region: "Northwest",
+    type: "city" as const,
+    popular: true,
+  },
+  {
+    id: "4",
+    name: "Buea",
+    region: "Southwest",
+    type: "city" as const,
+    popular: true,
+  },
+];
+
 const { width: screenWidth } = Dimensions.get("window");
 const CARD_WIDTH = screenWidth * 0.85;
 const CARD_MARGIN = 10;
-interface setActiveTab {}
 
 const Home = ({ setActiveTab }: { setActiveTab: any }) => {
   const { theme, isDark, toggleTheme } = useTheme();
@@ -51,14 +93,41 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(
-    null
-  );
+
+  // User's current location state
+  const [userLocation, setUserLocation] = useState<Location | null>({
+    id: "1",
+    name: "Yaoundé",
+    region: "Centre",
+    type: "city",
+    popular: true,
+  });
+  const [showLocationModal, setShowLocationModal] = useState(false);
+
+  // Modal states for bus selection
+  const [selectedBusForBooking, setSelectedBusForBooking] =
+    useState<Bus | null>(null);
+  const [showDestinationModal, setShowDestinationModal] = useState(false);
+  const [showBusTypeModal, setShowBusTypeModal] = useState(false);
+  const [tempSelectedDestination, setTempSelectedDestination] =
+    useState<string>("");
+  const [tempSelectedBusType, setTempSelectedBusType] = useState<
+    "Classic" | "VIP"
+  >("Classic");
+
+  // Initialize user location on component mount
+  useEffect(() => {
+    // You can set this based on user profile, GPS, or prompt user to select
+    // For now, we'll show the location selection modal if no location is set
+    if (!userLocation) {
+      setShowLocationModal(true);
+    }
+  }, []);
+
   const generateWeekData = (): DayData[] => {
     const today = new Date();
     const weekData: DayData[] = [];
 
-    // Generate data for 7 days starting from today
     for (let i = 0; i < 7; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
@@ -75,19 +144,11 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
           ? "Tomorrow"
           : date.toLocaleDateString("en-US", { weekday: "short" });
 
-      // Simulate different bus availability for different days
-      const availableBuses = baseBuses
-        .filter((_, index) => {
-          // Today: all buses
-          if (i === 0) return true;
-          // Other days: simulate some buses not available
-          return (index + i) % 3 !== 0;
-        })
-        .map((bus) => ({
-          ...bus,
-          id: `${bus.id}-day${i}`,
-          seatsAvailable: Math.max(1, bus.seatsAvailable - i * 2),
-        }));
+      // Use actual buses from database
+      const availableBuses = baseBuses.map((bus) => ({
+        ...bus,
+        id: `${bus.id}-day${i}`,
+      }));
 
       weekData.push({
         date,
@@ -101,37 +162,169 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
   };
 
   const weekData = generateWeekData();
-  const handleBookNow = (bus: Bus) => {
+
+  // Enhanced bus data processing with location filtering and real seat calculation
+  const processedBuses = React.useMemo(() => {
+    if (!userLocation) return [];
+
+    const dayBuses = weekData[selectedDayIndex]?.buses || [];
+    let processed: FilteredBus[] = [];
+
+    // Filter buses that depart from user's location
+    const locationBuses = dayBuses.filter(
+      (bus) => bus.routeCity.toLowerCase() === userLocation.name.toLowerCase()
+    );
+
+    locationBuses.forEach((bus) => {
+      bus.routeDestination.forEach((destination) => {
+        // Calculate seat availability using your database functions
+        const departuresWithAvailability = getDepartureWithAvailability(bus);
+
+        // Classic option
+        if (bus.busType.includes("Classic")) {
+          const totalClassicSeats = departuresWithAvailability.reduce(
+            (total, dept) => total + dept.availableSeats.Classic,
+            0
+          );
+
+          const bestClassicDeparture = departuresWithAvailability.reduce(
+            (best, current) =>
+              current.availableSeats.Classic > best.availableSeats.Classic
+                ? current
+                : best
+          );
+
+          if (totalClassicSeats > 0) {
+            processed.push({
+              ...bus,
+              id: `${bus.id}-classic-${destination.replace(/\s+/g, "")}`,
+              selectedBusType: "Classic",
+              displayPrice: bus.price.CL,
+              specificDestination: destination,
+              totalAvailableSeats: totalClassicSeats,
+              bestDeparturePoint: bestClassicDeparture.location,
+            });
+          }
+        }
+
+        // VIP option
+        if (bus.busType.includes("VIP")) {
+          const totalVIPSeats = departuresWithAvailability.reduce(
+            (total, dept) => total + dept.availableSeats.VIP,
+            0
+          );
+
+          const bestVIPDeparture = departuresWithAvailability.reduce(
+            (best, current) =>
+              current.availableSeats.VIP > best.availableSeats.VIP
+                ? current
+                : best
+          );
+
+          if (totalVIPSeats > 0) {
+            processed.push({
+              ...bus,
+              id: `${bus.id}-vip-${destination.replace(/\s+/g, "")}`,
+              selectedBusType: "VIP",
+              displayPrice: bus.price.VIP,
+              specificDestination: destination,
+              totalAvailableSeats: totalVIPSeats,
+              bestDeparturePoint: bestVIPDeparture.location,
+            });
+          }
+        }
+      });
+    });
+
+    return processed;
+  }, [weekData, selectedDayIndex, userLocation]);
+
+  const handleLocationSelect = (location: Location) => {
+    setUserLocation(location);
+    setShowLocationModal(false);
+  };
+
+  const handleBookNow = (
+    bus: Bus,
+    busType?: "Classic" | "VIP",
+    destination?: string
+  ) => {
+    if (bus.routeDestination.length > 1 && !destination) {
+      // Show destination selection modal
+      setSelectedBusForBooking(bus);
+      setTempSelectedBusType(busType || "Classic");
+      setShowDestinationModal(true);
+      return;
+    }
+
+    if (!busType && bus.price.CL !== bus.price.VIP) {
+      // Show bus type selection modal
+      setSelectedBusForBooking(bus);
+      setTempSelectedDestination(destination || bus.routeDestination[0]);
+      setShowBusTypeModal(true);
+      return;
+    }
+
+    // Navigate to booking screen with proper data structure
+    const selectedBusType = busType || "Classic";
+    const selectedDestination = destination || bus.routeDestination[0];
+
     router.push({
       pathname: "/screens/BookingScreen",
       params: {
-        busData: JSON.stringify(bus),
-        selectedLocationData: selectedLocation
-          ? JSON.stringify(selectedLocation)
-          : "",
+        busData: JSON.stringify({
+          ...bus,
+          selectedBusType: undefined,
+          specificDestination: undefined,
+          totalAvailableSeats: undefined,
+          bestDeparturePoint: undefined,
+        }),
+        selectedBusType: selectedBusType,
+        selectedDestination: selectedDestination,
+        selectedLocationData: userLocation ? JSON.stringify(userLocation) : "",
         selectedDateData: JSON.stringify(
           weekData[selectedDayIndex].date.toISOString()
         ),
       },
     });
   };
+
+  const handleDestinationSelection = (destination: string) => {
+    setTempSelectedDestination(destination);
+    setShowDestinationModal(false);
+
+    if (
+      selectedBusForBooking &&
+      selectedBusForBooking.price.CL !== selectedBusForBooking.price.VIP
+    ) {
+      setShowBusTypeModal(true);
+    } else {
+      handleBookNow(selectedBusForBooking!, tempSelectedBusType, destination);
+    }
+  };
+
+  const handleBusTypeSelection = (busType: "Classic" | "VIP") => {
+    setShowBusTypeModal(false);
+    handleBookNow(selectedBusForBooking!, busType, tempSelectedDestination);
+  };
+
   // Auto-scroll effect
   useEffect(() => {
+    if (processedBuses.length === 0) return;
+
     const interval = setInterval(() => {
       setCurrentIndex((prevIndex) => {
-        const nextIndex = (prevIndex + 1) % baseBuses.length;
-
+        const nextIndex = (prevIndex + 1) % processedBuses.length;
         scrollViewRef.current?.scrollTo({
           x: nextIndex * (CARD_WIDTH + CARD_MARGIN * 2),
           animated: true,
         });
-
         return nextIndex;
       });
-    }, 5000); // Change every 5 seconds
+    }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [processedBuses.length]);
 
   const QuickActionCard: React.FC<QuickActionCardProps> = ({
     icon,
@@ -202,11 +395,13 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
       </Pressable>
     );
   };
+
   const handleScroll = (event: any) => {
     const scrollPosition = event.nativeEvent.contentOffset.x;
     const index = Math.round(scrollPosition / (CARD_WIDTH + CARD_MARGIN * 2));
     setCurrentIndex(index);
   };
+
   const getTodayDate = () => {
     return new Date().toLocaleDateString("en-US", {
       weekday: "long",
@@ -248,6 +443,38 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
           >
             {user?.firstName} {user?.lastName}
           </Text>
+          {userLocation && (
+            <Pressable
+              onPress={() => setShowLocationModal(true)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginTop: 4,
+              }}
+            >
+              <Ionicons
+                name="location"
+                size={14}
+                color={theme.tint}
+                style={{ marginRight: 4 }}
+              />
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: theme.tint,
+                  fontWeight: "600",
+                }}
+              >
+                {userLocation.name}
+              </Text>
+              <Ionicons
+                name="chevron-down"
+                size={12}
+                color={theme.tint}
+                style={{ marginLeft: 2 }}
+              />
+            </Pressable>
+          )}
         </View>
         <View style={{ flexDirection: "row", gap: 10 }}>
           <Pressable
@@ -302,7 +529,8 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
           </Pressable>
         </View>
       </View>
-      {/* dropdown then show aamsll view base on state that show the first 3 latest notifications or show all */}
+
+      {/* Notification Dropdown */}
       {dropdownVisible && (
         <View
           style={{
@@ -328,87 +556,74 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
               maxHeight: 290,
             }}
           >
-            {alertsData.slice(0, 3).map((alert, index) => {
-              return (
-                <Pressable
-                  key={index}
-                  onPress={() => {
-                    setDropdownVisible(false);
-                    // Handle alert tap
-                  }}
-                  style={({ pressed }) => ({
-                    flexDirection: "row",
+            {alertsData.slice(0, 3).map((alert, index) => (
+              <Pressable
+                key={index}
+                onPress={() => {
+                  setDropdownVisible(false);
+                }}
+                style={({ pressed }) => ({
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  borderBottomWidth: index < 2 ? 1 : 0,
+                  borderBottomColor: theme.gradients.card.border + "30",
+                  backgroundColor: pressed
+                    ? theme.gradients.background.colors[0] + "20"
+                    : "transparent",
+                })}
+              >
+                <View
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: theme.gradients.card.border + "15",
+                    justifyContent: "center",
                     alignItems: "center",
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderBottomWidth: index < 2 ? 1 : 0,
-                    borderBottomColor: theme.gradients.card.border + "30",
-                    backgroundColor: pressed
-                      ? theme.gradients.background.colors[0] + "20"
-                      : "transparent",
-                  })}
+                    marginRight: 12,
+                  }}
                 >
-                  {/* Alert Icon */}
+                  <Ionicons name="alert-circle" size={16} color={theme.tint} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color: theme.gradients.dropdown.text,
+                      marginBottom: 2,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {alert.title}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: theme.gradients.dropdown.text,
+                      opacity: 0.7,
+                    }}
+                    numberOfLines={2}
+                  >
+                    {alert.message}
+                  </Text>
+                </View>
+                {!alert.isRead && (
                   <View
                     style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
-                      backgroundColor: theme.gradients.card.border + "15",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginRight: 12,
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: theme.tint,
+                      marginLeft: 8,
                     }}
-                  >
-                    <Ionicons
-                      name="alert-circle"
-                      size={16}
-                      color={theme.tint}
-                    />
-                  </View>
+                  />
+                )}
+              </Pressable>
+            ))}
 
-                  {/* Alert Content */}
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "600",
-                        color: theme.gradients.dropdown.text,
-                        marginBottom: 2,
-                      }}
-                      numberOfLines={1}
-                    >
-                      {alert.title}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: theme.gradients.dropdown.text,
-                        opacity: 0.7,
-                      }}
-                      numberOfLines={2}
-                    >
-                      {alert.message}
-                    </Text>
-                  </View>
-
-                  {/* Unread Indicator */}
-                  {!alert.isRead && (
-                    <View
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 4,
-                        backgroundColor: theme.tint,
-                        marginLeft: 8,
-                      }}
-                    />
-                  )}
-                </Pressable>
-              );
-            })}
-
-            {/* View All Button */}
             <Pressable
               onPress={() => {
                 setDropdownVisible(false);
@@ -437,7 +652,7 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
         </View>
       )}
 
-      {/* Hero Section - Today's Buses */}
+      {/* Hero Section - Today's Buses from User's Location */}
       <View style={{ marginBottom: 30 }}>
         <View
           style={{
@@ -456,7 +671,9 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
                 color: theme.gradients.background.text,
               }}
             >
-              Today's Buses
+              {userLocation
+                ? `Buses from ${userLocation.name}`
+                : "Today's Buses"}
             </Text>
             <Text
               style={{
@@ -482,56 +699,137 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
           </Pressable>
         </View>
 
-        {/* Auto-scrolling Bus Cards */}
-        <ScrollView
-          ref={scrollViewRef}
-          horizontal
-          pagingEnabled={false}
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={handleScroll}
-          contentContainerStyle={{
-            paddingLeft: (screenWidth - CARD_WIDTH) / 2,
-            paddingRight: (screenWidth - CARD_WIDTH) / 2,
-          }}
-          snapToInterval={CARD_WIDTH + CARD_MARGIN * 3}
-          decelerationRate="fast"
-        >
-          {baseBuses.map((bus, index) => (
-            <BusCard
-              key={bus.id}
-              bus={bus}
-              theme={theme}
-              isActive={index === currentIndex}
-              selectedLocation={selectedLocation}
-              onBookNow={() => handleBookNow(bus)}
-            />
-          ))}
-        </ScrollView>
-
-        {/* Pagination Dots */}
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "center",
-            marginTop: 15,
-            gap: 8,
-          }}
-        >
-          {baseBuses.map((_, index) => (
-            <View
-              key={index}
-              style={{
-                width: index === currentIndex ? 20 : 8,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor:
-                  index === currentIndex
-                    ? theme.tint
-                    : theme.gradients.background.text + "30",
+        {/* Enhanced Auto-scrolling Bus Cards */}
+        {processedBuses.length > 0 ? (
+          <>
+            <ScrollView
+              ref={scrollViewRef}
+              horizontal
+              pagingEnabled={false}
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={handleScroll}
+              contentContainerStyle={{
+                paddingLeft: (screenWidth - CARD_WIDTH) / 2,
+                paddingRight: (screenWidth - CARD_WIDTH) / 2,
               }}
-            />
-          ))}
-        </View>
+              snapToInterval={CARD_WIDTH + CARD_MARGIN * 2}
+              decelerationRate="fast"
+            >
+              {processedBuses.map((bus, index) => (
+                <BusCard
+                  key={bus.id}
+                  bus={bus}
+                  theme={theme}
+                  isActive={index === currentIndex}
+                  userLocation={userLocation}
+                  onBookNow={() =>
+                    handleBookNow(
+                      bus,
+                      bus.selectedBusType,
+                      bus.specificDestination
+                    )
+                  }
+                />
+              ))}
+            </ScrollView>
+
+            {/* Pagination Dots */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "center",
+                marginTop: 15,
+                gap: 8,
+              }}
+            >
+              {processedBuses.map((_, index) => (
+                <View
+                  key={index}
+                  style={{
+                    width: index === currentIndex ? 20 : 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor:
+                      index === currentIndex
+                        ? theme.tint
+                        : theme.gradients.background.text + "30",
+                  }}
+                />
+              ))}
+            </View>
+          </>
+        ) : (
+          <View
+            style={{
+              alignItems: "center",
+              paddingVertical: 40,
+              paddingHorizontal: 20,
+            }}
+          >
+            <View
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 40,
+                backgroundColor: theme.gradients.card.colors[0],
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Ionicons
+                name="bus-outline"
+                size={40}
+                color={theme.gradients.background.text}
+                style={{ opacity: 0.5 }}
+              />
+            </View>
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "700",
+                color: theme.gradients.background.text,
+                textAlign: "center",
+                marginBottom: 8,
+              }}
+            >
+              No buses available
+            </Text>
+            <Text
+              style={{
+                fontSize: 14,
+                color: theme.gradients.background.text,
+                opacity: 0.6,
+                textAlign: "center",
+              }}
+            >
+              {userLocation
+                ? `No buses departing from ${userLocation.name} today`
+                : "Please select your location to view available buses"}
+            </Text>
+            {userLocation && (
+              <Pressable
+                onPress={() => setShowLocationModal(true)}
+                style={{
+                  marginTop: 16,
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  backgroundColor: theme.tint,
+                  borderRadius: 20,
+                }}
+              >
+                <Text
+                  style={{
+                    color: theme.gradients.buttonPrimary.text,
+                    fontWeight: "600",
+                  }}
+                >
+                  Change Location
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Quick Actions */}
@@ -584,7 +882,7 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
       <View
         style={{
           paddingHorizontal: 20,
-          marginBottom: 100, // Extra space for bottom tabs
+          marginBottom: 100,
         }}
       >
         <Text
@@ -600,6 +898,308 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
 
         <RecentBookingCard theme={theme} />
       </View>
+
+      {/* Location Selection Modal */}
+      <Modal
+        visible={showLocationModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLocationModal(false)}
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => {
+            if (userLocation) {
+              setShowLocationModal(false);
+            }
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: theme.gradients.card.colors[0],
+              borderRadius: 20,
+              padding: 20,
+              width: "85%",
+              maxWidth: 350,
+              borderWidth: 1,
+              borderColor: theme.gradients.card.border,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "700",
+                color: theme.gradients.card.text,
+                marginBottom: 8,
+                textAlign: "center",
+              }}
+            >
+              Select Your Location
+            </Text>
+            <Text
+              style={{
+                fontSize: 14,
+                color: theme.gradients.card.text,
+                opacity: 0.7,
+                marginBottom: 20,
+                textAlign: "center",
+              }}
+            >
+              Choose your city to see available buses
+            </Text>
+
+            {MAIN_CITIES.map((city) => (
+              <Pressable
+                key={city.id}
+                onPress={() => handleLocationSelect(city)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingVertical: 15,
+                  paddingHorizontal: 15,
+                  borderRadius: 12,
+                  marginBottom: 10,
+                  backgroundColor:
+                    userLocation?.id === city.id
+                      ? theme.tint + "20"
+                      : "transparent",
+                }}
+              >
+                <Ionicons
+                  name="location"
+                  size={20}
+                  color={theme.gradients.card.text}
+                  style={{ marginRight: 12 }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "600",
+                      color: theme.gradients.card.text,
+                    }}
+                  >
+                    {city.name}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: theme.gradients.card.text,
+                      opacity: 0.6,
+                    }}
+                  >
+                    {city.region} Region
+                  </Text>
+                </View>
+                {userLocation?.id === city.id && (
+                  <Ionicons name="checkmark" size={20} color={theme.tint} />
+                )}
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Destination Selection Modal */}
+      <Modal
+        visible={showDestinationModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDestinationModal(false)}
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => setShowDestinationModal(false)}
+        >
+          <View
+            style={{
+              backgroundColor: theme.gradients.card.colors[0],
+              borderRadius: 20,
+              padding: 20,
+              width: "85%",
+              maxWidth: 350,
+              borderWidth: 1,
+              borderColor: theme.gradients.card.border,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "700",
+                color: theme.gradients.card.text,
+                marginBottom: 20,
+                textAlign: "center",
+              }}
+            >
+              Select Destination
+            </Text>
+
+            {selectedBusForBooking?.routeDestination.map((destination) => (
+              <Pressable
+                key={destination}
+                onPress={() => handleDestinationSelection(destination)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingVertical: 15,
+                  paddingHorizontal: 15,
+                  borderRadius: 12,
+                  marginBottom: 10,
+                  backgroundColor: "transparent",
+                }}
+              >
+                <Ionicons
+                  name="location"
+                  size={20}
+                  color={theme.gradients.card.text}
+                  style={{ marginRight: 12 }}
+                />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.gradients.card.text,
+                    flex: 1,
+                  }}
+                >
+                  {destination}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Bus Type Selection Modal */}
+      <Modal
+        visible={showBusTypeModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowBusTypeModal(false)}
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => setShowBusTypeModal(false)}
+        >
+          <View
+            style={{
+              backgroundColor: theme.gradients.card.colors[0],
+              borderRadius: 20,
+              padding: 20,
+              width: "80%",
+              maxWidth: 300,
+              borderWidth: 1,
+              borderColor: theme.gradients.card.border,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "700",
+                color: theme.gradients.card.text,
+                marginBottom: 20,
+                textAlign: "center",
+              }}
+            >
+              Select Bus Type
+            </Text>
+
+            <Pressable
+              onPress={() => handleBusTypeSelection("Classic")}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 15,
+                paddingHorizontal: 15,
+                borderRadius: 12,
+                marginBottom: 10,
+                backgroundColor: "transparent",
+              }}
+            >
+              <Ionicons
+                name="bus"
+                size={20}
+                color={theme.gradients.card.text}
+                style={{ marginRight: 12 }}
+              />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.gradients.card.text,
+                  }}
+                >
+                  Classic
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: theme.tint,
+                    fontWeight: "600",
+                  }}
+                >
+                  {selectedBusForBooking?.price.CL.toLocaleString()}CFA
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleBusTypeSelection("VIP")}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 15,
+                paddingHorizontal: 15,
+                borderRadius: 12,
+                backgroundColor: "transparent",
+              }}
+            >
+              <Ionicons
+                name="star"
+                size={20}
+                color={theme.gradients.card.text}
+                style={{ marginRight: 12 }}
+              />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.gradients.card.text,
+                  }}
+                >
+                  VIP
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: theme.tint,
+                    fontWeight: "600",
+                  }}
+                >
+                  {selectedBusForBooking?.price.VIP.toLocaleString()}CFA
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 };
@@ -609,6 +1209,7 @@ export default Home;
 interface RecentBookingCardProps {
   theme: any;
 }
+
 const RecentBookingCard: React.FC<RecentBookingCardProps> = ({ theme }) => {
   const getStatusColor = (status: Booking["status"]) => {
     switch (status) {
@@ -627,7 +1228,7 @@ const RecentBookingCard: React.FC<RecentBookingCardProps> = ({ theme }) => {
 
   return (
     <>
-      {bookingsData.map((booking) => (
+      {bookingsData.slice(0, 3).map((booking) => (
         <LinearGradient
           colors={theme.gradients.card.colors}
           start={theme.gradients.card.start}
@@ -736,10 +1337,10 @@ const RecentBookingCard: React.FC<RecentBookingCardProps> = ({ theme }) => {
 };
 
 interface BusCardProps {
-  bus: Bus;
+  bus: FilteredBus;
   theme: any;
   isActive: boolean;
-  selectedLocation: Location | null;
+  userLocation: Location | null;
   onBookNow: () => void;
 }
 
@@ -747,17 +1348,17 @@ const BusCard: React.FC<BusCardProps> = ({
   bus,
   theme,
   isActive,
-  selectedLocation,
+  userLocation,
   onBookNow,
 }) => {
   const { isDark } = useTheme();
-  // Determine the departure city to display
-  const departureCity = selectedLocation?.name || bus.routeCity;
+  const departureCity = userLocation?.name || bus.routeCity;
+
   return (
     <Pressable
       style={{
         width: CARD_WIDTH,
-        marginHorizontal: CARD_MARGIN - 4.5,
+        marginHorizontal: CARD_MARGIN - 1,
         transform: [{ scale: isActive ? 1 : 0.95 }],
         opacity: isActive ? 1 : 0.7,
       }}
@@ -774,7 +1375,6 @@ const BusCard: React.FC<BusCardProps> = ({
           borderColor: theme.gradients.card.border,
         }}
       >
-        {/* Bus Image */}
         <Image
           source={{ uri: bus.image }}
           style={{
@@ -785,13 +1385,18 @@ const BusCard: React.FC<BusCardProps> = ({
           resizeMode="cover"
         />
 
-        {/* Bus Type Badge */}
+        {/* Enhanced Bus Type Badge */}
         <View
           style={{
             position: "absolute",
             top: 10,
             right: 10,
-            backgroundColor: isDark ? theme.gradients.card.border : theme.tint,
+            backgroundColor:
+              bus.selectedBusType === "VIP"
+                ? "#FFD700"
+                : isDark
+                ? theme.gradients.card.border
+                : theme.tint,
             paddingHorizontal: 8,
             paddingVertical: 4,
             borderRadius: 8,
@@ -799,16 +1404,15 @@ const BusCard: React.FC<BusCardProps> = ({
         >
           <Text
             style={{
-              color: "#FFFFFF",
+              color: bus.selectedBusType === "VIP" ? "#000" : "#FFFFFF",
               fontSize: 12,
               fontWeight: "600",
             }}
           >
-            {bus.busType}
+            {bus.selectedBusType}
           </Text>
         </View>
 
-        {/* Card Content */}
         <View style={{ padding: 16 }}>
           <View
             style={{
@@ -830,13 +1434,6 @@ const BusCard: React.FC<BusCardProps> = ({
               {bus.routeCity}
             </Text>
 
-            {/* <Ionicons
-              name="arrow-forward"
-              size={16}
-              color={theme.tint}
-              style={{ marginHorizontal: 8 }}
-            /> */}
-
             <Text
               style={{
                 fontSize: 15,
@@ -847,7 +1444,7 @@ const BusCard: React.FC<BusCardProps> = ({
               }}
               numberOfLines={1}
             >
-              {bus.routeDestination}
+              {bus.specificDestination}
             </Text>
           </View>
 
@@ -929,7 +1526,7 @@ const BusCard: React.FC<BusCardProps> = ({
                   color: theme.tint,
                 }}
               >
-                {bus.price}CFA
+                {bus.displayPrice.toLocaleString()}CFA
               </Text>
               <Text
                 style={{
@@ -938,11 +1535,11 @@ const BusCard: React.FC<BusCardProps> = ({
                   opacity: 0.6,
                 }}
               >
-                {bus.seatsAvailable} seats left
+                {bus.totalAvailableSeats} seats left
               </Text>
             </View>
 
-            <Pressable onPress={() => onBookNow()}>
+            <Pressable onPress={onBookNow}>
               <LinearGradient
                 colors={theme.gradients.buttonPrimary.colors}
                 start={theme.gradients.buttonPrimary.start}

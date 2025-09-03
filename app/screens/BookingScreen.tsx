@@ -1,10 +1,10 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { Bus } from "@/db/busData";
+import { Bus, generateAllSeatNumbers, getAvailableSeats } from "@/db/busData";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -47,6 +47,10 @@ const BookingScreen = () => {
 
   // Parse the route params
   const bus: Bus = JSON.parse(params.busData as string);
+  const selectedBusType: string =
+    (params.selectedBusType as string) || "Classic";
+  const selectedDestinationFromSearch: string =
+    (params.selectedDestination as string) || "";
   const selectedLocation: Location | null = params.selectedLocationData
     ? JSON.parse(params.selectedLocationData as string)
     : null;
@@ -56,15 +60,39 @@ const BookingScreen = () => {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
-  const [selectedDeparturePoint, setSelectedDeparturePoint] = useState<string>(
-    bus.departure && bus.departure.length > 0
-      ? bus.departure[0]
-      : "Main Station"
+
+  // Updated to use the actual departure structure with calculated available seats
+  const [selectedDeparturePoint, setSelectedDeparturePoint] = useState<
+    Bus["departure"][0] & { availableSeats: { Classic: number; VIP: number } }
+  >(() => {
+    if (bus.departure && bus.departure.length > 0) {
+      const firstDeparture = bus.departure[0];
+      return {
+        ...firstDeparture,
+        availableSeats: {
+          Classic: getAvailableSeats(firstDeparture, "Classic"),
+          VIP: getAvailableSeats(firstDeparture, "VIP"),
+        },
+      };
+    }
+    return {
+      location: "Main Station",
+      seatsTaken: { Classic: [], VIP: [] },
+      availableSeats: { Classic: 0, VIP: 0 },
+    };
+  });
+
+  const [selectedDestination, setSelectedDestination] = useState<string>(
+    selectedDestinationFromSearch || bus.routeDestination[0] || ""
   );
 
+  const [selectedBusTypeState, setSelectedBusTypeState] = useState<
+    "Classic" | "VIP"
+  >(selectedBusType === "Classic" ? "Classic" : "VIP");
+
   const [passengerInfo, setPassengerInfo] = useState<PassengerInfo>({
-    firstName: `${user?.firstName} `,
-    lastName: `${user?.lastName}`,
+    firstName: `${user?.firstName || ""} `,
+    lastName: `${user?.lastName || ""}`,
     phone: "",
     email: "",
     idNumber: "",
@@ -74,18 +102,77 @@ const BookingScreen = () => {
   >("mobile");
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
 
-  // Update the handleSeatSelect function
+  // Get current price based on selected bus type
+  const getCurrentPrice = () => {
+    if (selectedBusTypeState === "Classic") {
+      return bus.price.CL;
+    } else {
+      return bus.price.VIP;
+    }
+  };
+
+  // Get arrival locations for selected destination
+  const getArrivalLocations = () => {
+    const destinationInfo = bus.arrival.find(
+      (arr) => arr.city === selectedDestination
+    );
+    return destinationInfo?.locations || [];
+  };
+
+  const [selectedArrivalPoint, setSelectedArrivalPoint] = useState<string>(
+    getArrivalLocations()[0] || ""
+  );
+
+  // Generate seat map based on selected departure point and bus type
+  const generateSeatMap = (): SeatMap => {
+    const seatMap: SeatMap = {};
+    const allSeats = generateAllSeatNumbers();
+    const takenSeats =
+      selectedDeparturePoint.seatsTaken[selectedBusTypeState] || [];
+
+    // Generate all seats
+    allSeats.forEach((seatNumber) => {
+      seatMap[seatNumber] = {
+        isOccupied: takenSeats.includes(seatNumber),
+        isSelected: false,
+        seatNumber: seatNumber,
+      };
+    });
+
+    return seatMap;
+  };
+
+  const [seatMap, setSeatMap] = useState<SeatMap>(generateSeatMap());
+
+  // Regenerate seat map when departure point or bus type changes
+  useEffect(() => {
+    setSeatMap(generateSeatMap());
+    setSelectedSeats([]); // Clear selected seats when departure point or bus type changes
+  }, [selectedDeparturePoint, selectedBusTypeState]);
+
+  // Update the handleSeatSelect function with validation
   const handleSeatSelect = (seatNumber: string) => {
     if (seatMap[seatNumber].isOccupied) return;
 
     const newSeatMap = { ...seatMap };
     const isCurrentlySelected = selectedSeats.includes(seatNumber);
+    const maxSeatsAvailable =
+      selectedDeparturePoint.availableSeats[selectedBusTypeState];
 
     if (isCurrentlySelected) {
       // Deselect the seat
       newSeatMap[seatNumber].isSelected = false;
       setSelectedSeats(selectedSeats.filter((seat) => seat !== seatNumber));
     } else {
+      // Check if we can select more seats
+      if (selectedSeats.length >= maxSeatsAvailable) {
+        Alert.alert(
+          "Seats Limit Reached",
+          `Only ${maxSeatsAvailable} seats are available for ${selectedBusTypeState} at ${selectedDeparturePoint.location}`
+        );
+        return;
+      }
+
       // Select the seat
       newSeatMap[seatNumber].isSelected = true;
       setSelectedSeats([...selectedSeats, seatNumber]);
@@ -98,27 +185,6 @@ const BookingScreen = () => {
   const handleBack = () => {
     router.back();
   };
-
-  // Generate seat map (simplified 2x2 layout for demo)
-  const generateSeatMap = (): SeatMap => {
-    const seatMap: SeatMap = {};
-    const totalSeats = 40; // Standard bus capacity
-    const occupiedSeats = totalSeats - (bus.seatsAvailable || 0);
-
-    for (let i = 1; i <= totalSeats; i++) {
-      const seatNumber = `${Math.ceil(i / 4)}${String.fromCharCode(
-        65 + ((i - 1) % 4)
-      )}`;
-      seatMap[seatNumber] = {
-        isOccupied: i <= occupiedSeats,
-        isSelected: false,
-        seatNumber: seatNumber,
-      };
-    }
-    return seatMap;
-  };
-
-  const [seatMap, setSeatMap] = useState<SeatMap>(generateSeatMap());
 
   // Update validation in handleNextStep
   const handleNextStep = () => {
@@ -156,7 +222,9 @@ const BookingScreen = () => {
       "Booking Confirmed!",
       `Your ${seatText} ${
         selectedSeats.length === 1 ? "has" : "have"
-      } been booked successfully. You will receive a confirmation SMS shortly.`,
+      } been booked successfully from ${
+        selectedDeparturePoint.location
+      }. You will receive a confirmation SMS shortly.`,
       [
         {
           text: "OK",
@@ -165,6 +233,7 @@ const BookingScreen = () => {
       ]
     );
   };
+
   const renderStepIndicator = () => (
     <View
       style={{
@@ -225,6 +294,313 @@ const BookingScreen = () => {
     </View>
   );
 
+  // Enhanced Departure Points Display Component
+  const renderDeparturePointsGrid = () => (
+    <View style={{ marginBottom: 20 }}>
+      <Text
+        style={{
+          fontSize: 16,
+          fontWeight: "700",
+          color: theme.gradients.background.text,
+          marginBottom: 12,
+          textAlign: "center",
+        }}
+      >
+        Choose Your Departure Point
+      </Text>
+
+      <View style={{ gap: 12 }}>
+        {bus.departure.map((point, index) => {
+          const availableSeats = {
+            Classic: getAvailableSeats(point, "Classic"),
+            VIP: getAvailableSeats(point, "VIP"),
+          };
+          const currentAvailable = availableSeats[selectedBusTypeState];
+
+          return (
+            <Pressable
+              key={index}
+              onPress={() =>
+                setSelectedDeparturePoint({
+                  ...point,
+                  availableSeats,
+                })
+              }
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: 16,
+                borderRadius: 16,
+                backgroundColor:
+                  selectedDeparturePoint.location === point.location
+                    ? theme.tint + "20"
+                    : theme.gradients.card.colors[0],
+                borderWidth: 2,
+                borderColor:
+                  selectedDeparturePoint.location === point.location
+                    ? theme.tint
+                    : theme.gradients.card.border,
+                shadowColor:
+                  selectedDeparturePoint.location === point.location
+                    ? theme.tint
+                    : "transparent",
+                shadowOffset: {
+                  width: 0,
+                  height: 2,
+                },
+                shadowOpacity:
+                  selectedDeparturePoint.location === point.location ? 0.25 : 0,
+                shadowRadius: 3.84,
+                elevation:
+                  selectedDeparturePoint.location === point.location ? 5 : 2,
+              }}
+            >
+              {/* Location Info */}
+              <View style={{ flex: 1 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 4,
+                  }}
+                >
+                  <Ionicons
+                    name="location"
+                    size={18}
+                    color={
+                      selectedDeparturePoint.location === point.location
+                        ? theme.tint
+                        : theme.gradients.card.text
+                    }
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "700",
+                      color: isDark ? theme.tint : theme.gradients.card.text,
+                      flex: 1,
+                    }}
+                    numberOfLines={2}
+                  >
+                    {point.location}
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Ionicons
+                    name="people"
+                    size={14}
+                    color={theme.gradients.card.text}
+                    style={{ opacity: 0.6, marginRight: 4 }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: theme.gradients.card.text,
+                      opacity: 0.7,
+                    }}
+                  >
+                    {selectedBusTypeState} seats available
+                  </Text>
+                </View>
+              </View>
+
+              {/* Seats Available */}
+              <View style={{ alignItems: "center", marginLeft: 12 }}>
+                <View
+                  style={{
+                    backgroundColor:
+                      currentAvailable > 20
+                        ? theme.status.success.colors[0] + "20"
+                        : currentAvailable > 10
+                        ? "#F59E0B20"
+                        : "#EF444420",
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 12,
+                    minWidth: 60,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 20,
+                      fontWeight: "800",
+                      color:
+                        currentAvailable > 20
+                          ? theme.status.success.colors[0]
+                          : currentAvailable > 10
+                          ? "#F59E0B"
+                          : "#EF4444",
+                    }}
+                  >
+                    {currentAvailable}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontWeight: "600",
+                      color:
+                        currentAvailable > 20
+                          ? theme.status.success.colors[0]
+                          : currentAvailable > 10
+                          ? "#F59E0B"
+                          : "#EF4444",
+                    }}
+                  >
+                    SEATS
+                  </Text>
+                </View>
+
+                {/* Availability Status */}
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: "600",
+                    marginTop: 4,
+                    color:
+                      currentAvailable > 20
+                        ? theme.status.success.colors[0]
+                        : currentAvailable > 10
+                        ? "#F59E0B"
+                        : "#EF4444",
+                  }}
+                >
+                  {currentAvailable > 20
+                    ? "GOOD"
+                    : currentAvailable > 10
+                    ? "LIMITED"
+                    : "FEW LEFT"}
+                </Text>
+              </View>
+
+              {/* Selection Indicator */}
+              {selectedDeparturePoint.location === point.location && (
+                <View style={{ marginLeft: 8 }}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={theme.tint}
+                  />
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Bus Type Selection */}
+      <View style={{ marginTop: 16 }}>
+        <Text
+          style={{
+            fontSize: 14,
+            fontWeight: "600",
+            color: theme.gradients.background.text,
+            marginBottom: 8,
+            textAlign: "center",
+          }}
+        >
+          Select Bus Type
+        </Text>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {bus.busType.map((type) => (
+            <Pressable
+              key={type}
+              onPress={() => setSelectedBusTypeState(type as "Classic" | "VIP")}
+              style={{
+                flex: 1,
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                backgroundColor:
+                  selectedBusTypeState === type
+                    ? theme.gradients.buttonPrimary.colors[1]
+                    : theme.gradients.card.colors[0],
+                borderWidth: 1,
+                borderColor:
+                  selectedBusTypeState === type
+                    ? theme.status.success.colors[0]
+                    : theme.gradients.card.border,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  color:
+                    selectedBusTypeState === type
+                      ? theme.gradients.buttonPrimary.text
+                      : theme.gradients.card.text,
+                  fontWeight: "600",
+                  fontSize: 14,
+                }}
+              >
+                {type} - {type === "Classic" ? bus.price.CL : bus.price.VIP}CFA
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      {/* Summary Card */}
+      <LinearGradient
+        colors={theme.gradients.card.colors}
+        start={theme.gradients.card.start}
+        end={theme.gradients.card.end}
+        locations={theme.gradients.card.locations}
+        style={{
+          padding: 16,
+          borderRadius: 16,
+          marginTop: 16,
+          borderWidth: 1,
+          borderColor: theme.tint + "30",
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <View>
+            <Text
+              style={{
+                color: theme.gradients.card.text,
+                fontSize: 12,
+                opacity: 0.7,
+              }}
+            >
+              Selected Departure Point:
+            </Text>
+            <Text
+              style={{ color: theme.tint, fontSize: 16, fontWeight: "700" }}
+            >
+              {selectedDeparturePoint.location}
+            </Text>
+          </View>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text
+              style={{
+                color: theme.gradients.card.text,
+                fontSize: 12,
+                opacity: 0.7,
+              }}
+            >
+              {selectedBusTypeState} Seats
+            </Text>
+            <Text
+              style={{ color: theme.tint, fontSize: 18, fontWeight: "700" }}
+            >
+              {selectedDeparturePoint.availableSeats[selectedBusTypeState]}
+            </Text>
+          </View>
+        </View>
+      </LinearGradient>
+    </View>
+  );
+
   const renderSeatSelection = () => (
     <View style={{ padding: 20 }}>
       <Text
@@ -238,6 +614,10 @@ const BookingScreen = () => {
       >
         Select Your Seat
       </Text>
+
+      {/* Departure Points Display */}
+      {renderDeparturePointsGrid()}
+
       {/* Bus Layout */}
       <View
         style={{
@@ -269,16 +649,16 @@ const BookingScreen = () => {
           </View>
         </View>
 
-        {/* Seats Grid */}
+        {/* Seats Grid - 14 rows with 3 left + 2 right layout */}
         <View style={{ gap: 8 }}>
-          {Array.from({ length: 10 }, (_, rowIndex) => (
+          {Array.from({ length: 14 }, (_, rowIndex) => (
             <View
               key={rowIndex}
               style={{ flexDirection: "row", justifyContent: "space-between" }}
             >
-              {/* Left side seats (A, B) */}
+              {/* Left side seats (A, B, C) */}
               <View style={{ flexDirection: "row", gap: 8 }}>
-                {["A", "B"].map((letter) => {
+                {["A", "B", "C"].map((letter) => {
                   const seatNumber = `${rowIndex + 1}${letter}`;
                   const seat = seatMap[seatNumber];
                   if (!seat) return null;
@@ -288,8 +668,8 @@ const BookingScreen = () => {
                       key={seatNumber}
                       onPress={() => handleSeatSelect(seatNumber)}
                       style={{
-                        width: 40,
-                        height: 40,
+                        width: 36,
+                        height: 36,
                         borderRadius: 8,
                         backgroundColor: seat.isOccupied
                           ? theme.gradients.card.border
@@ -307,12 +687,12 @@ const BookingScreen = () => {
                     >
                       <Text
                         style={{
-                          fontSize: 12,
+                          fontSize: 10,
                           fontWeight: "600",
                           color: seat.isOccupied
                             ? theme.gradients.card.text + "60"
                             : seat.isSelected
-                            ? "#FFFFFF"
+                            ? theme.status.success.colors[0]
                             : theme.gradients.card.text,
                         }}
                       >
@@ -326,9 +706,9 @@ const BookingScreen = () => {
               {/* Aisle space */}
               <View style={{ width: 20 }} />
 
-              {/* Right side seats (C, D) */}
+              {/* Right side seats (D, E) */}
               <View style={{ flexDirection: "row", gap: 8 }}>
-                {["C", "D"].map((letter) => {
+                {["D", "E"].map((letter) => {
                   const seatNumber = `${rowIndex + 1}${letter}`;
                   const seat = seatMap[seatNumber];
                   if (!seat) return null;
@@ -338,8 +718,8 @@ const BookingScreen = () => {
                       key={seatNumber}
                       onPress={() => handleSeatSelect(seatNumber)}
                       style={{
-                        width: 40,
-                        height: 40,
+                        width: 36,
+                        height: 36,
                         borderRadius: 8,
                         backgroundColor: seat.isOccupied
                           ? theme.gradients.card.border
@@ -357,12 +737,12 @@ const BookingScreen = () => {
                     >
                       <Text
                         style={{
-                          fontSize: 12,
+                          fontSize: 10,
                           fontWeight: "600",
                           color: seat.isOccupied
                             ? theme.gradients.card.text + "60"
                             : seat.isSelected
-                            ? "#FFFFFF"
+                            ? theme.status.success.colors[0]
                             : theme.gradients.card.text,
                         }}
                       >
@@ -376,6 +756,7 @@ const BookingScreen = () => {
           ))}
         </View>
       </View>
+
       {/* Seat Legend */}
       <View
         style={{
@@ -435,8 +816,8 @@ const BookingScreen = () => {
           </Text>
         </View>
       </View>
-      {/* Selected Seat Info Update the seat selection display */}
 
+      {/* Selected Seat Info */}
       {selectedSeats.length > 0 && (
         <LinearGradient
           colors={theme.gradients.card.colors}
@@ -458,10 +839,22 @@ const BookingScreen = () => {
               textAlign: "center",
             }}
           >
-            Selected:{" "}
+            Selected:
             {selectedSeats.length === 1
-              ? `Seat ${selectedSeats[0]}`
-              : `${selectedSeats.length} Seats (${selectedSeats.join(", ")})`}
+              ? ` Seat ${selectedSeats[0]}`
+              : ` ${selectedSeats.length} Seats (${selectedSeats.join(", ")})`}
+          </Text>
+          <Text
+            style={{
+              fontSize: 14,
+              color: theme.tint,
+              textAlign: "center",
+              marginTop: 4,
+              fontWeight: "600",
+            }}
+          >
+            Total: {(getCurrentPrice() * selectedSeats.length).toLocaleString()}
+            CFA
           </Text>
         </LinearGradient>
       )}
@@ -482,8 +875,8 @@ const BookingScreen = () => {
         Passenger Information
       </Text>
 
-      {/* Departure Point Selection */}
-      {bus.departure && bus.departure.length > 0 && (
+      {/* Destination Selection - Only show if not pre-selected from search */}
+      {!selectedDestinationFromSearch && (
         <View style={{ marginBottom: 20 }}>
           <Text
             style={{
@@ -493,25 +886,31 @@ const BookingScreen = () => {
               marginBottom: 8,
             }}
           >
-            Departure Point
+            Destination
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {bus.departure.map((point) => (
+            {bus.routeDestination.map((destination) => (
               <Pressable
-                key={point}
-                onPress={() => setSelectedDeparturePoint(point)}
+                key={destination}
+                onPress={() => {
+                  setSelectedDestination(destination);
+                  const newArrivalLocations =
+                    bus.arrival.find((arr) => arr.city === destination)
+                      ?.locations || [];
+                  setSelectedArrivalPoint(newArrivalLocations[0] || "");
+                }}
                 style={{
                   paddingHorizontal: 16,
                   paddingVertical: 10,
                   borderRadius: 20,
                   backgroundColor:
-                    selectedDeparturePoint === point
+                    selectedDestination === destination
                       ? theme.tint
                       : theme.gradients.card.colors[0],
                   marginRight: 8,
                   borderWidth: 1,
                   borderColor:
-                    selectedDeparturePoint === point
+                    selectedDestination === destination
                       ? theme.tint
                       : theme.gradients.card.border,
                 }}
@@ -519,14 +918,14 @@ const BookingScreen = () => {
                 <Text
                   style={{
                     color:
-                      selectedDeparturePoint === point
-                        ? "#FFFFFF"
+                      selectedDestination === destination
+                        ? theme.gradients.buttonPrimary.text
                         : theme.gradients.card.text,
                     fontWeight: "600",
                     fontSize: 13,
                   }}
                 >
-                  {point}
+                  {destination}
                 </Text>
               </Pressable>
             ))}
@@ -827,7 +1226,7 @@ const BookingScreen = () => {
             <Text
               style={{ color: theme.gradients.card.text, fontWeight: "600" }}
             >
-              {selectedLocation?.name || bus.routeCity} → {bus.routeDestination}
+              {selectedLocation?.name || bus.routeCity} → {selectedDestination}
             </Text>
           </View>
           <View
@@ -852,6 +1251,18 @@ const BookingScreen = () => {
               style={{ color: theme.gradients.card.text, fontWeight: "600" }}
             >
               {bus.departureTime}
+            </Text>
+          </View>
+          <View
+            style={{ flexDirection: "row", justifyContent: "space-between" }}
+          >
+            <Text style={{ color: theme.gradients.card.text, opacity: 0.7 }}>
+              Bus Type
+            </Text>
+            <Text
+              style={{ color: theme.gradients.card.text, fontWeight: "600" }}
+            >
+              {selectedBusTypeState}
             </Text>
           </View>
           <View
@@ -889,7 +1300,7 @@ const BookingScreen = () => {
             <Text
               style={{ color: theme.gradients.card.text, fontWeight: "600" }}
             >
-              {bus.price.toLocaleString()}CFA
+              {getCurrentPrice().toLocaleString()}CFA
             </Text>
           </View>
           <View
@@ -901,9 +1312,23 @@ const BookingScreen = () => {
             <Text
               style={{ color: theme.gradients.card.text, fontWeight: "600" }}
             >
-              {selectedDeparturePoint}
+              {selectedDeparturePoint.location}
             </Text>
           </View>
+          {selectedArrivalPoint && (
+            <View
+              style={{ flexDirection: "row", justifyContent: "space-between" }}
+            >
+              <Text style={{ color: theme.gradients.card.text, opacity: 0.7 }}>
+                Arrival Point
+              </Text>
+              <Text
+                style={{ color: theme.gradients.card.text, fontWeight: "600" }}
+              >
+                {selectedArrivalPoint}
+              </Text>
+            </View>
+          )}
           <View
             style={{ flexDirection: "row", justifyContent: "space-between" }}
           >
@@ -940,7 +1365,7 @@ const BookingScreen = () => {
             <Text
               style={{ color: theme.tint, fontSize: 20, fontWeight: "800" }}
             >
-              {(bus.price * selectedSeats.length).toLocaleString()}CFA
+              {(getCurrentPrice() * selectedSeats.length).toLocaleString()}CFA
             </Text>
           </View>
         </View>
@@ -1037,7 +1462,7 @@ const BookingScreen = () => {
                     }}
                   >
                     {selectedLocation?.name || bus.routeCity} →{" "}
-                    {bus.routeDestination}
+                    {selectedDestination}
                   </Text>
                   <Text
                     style={{
@@ -1047,7 +1472,8 @@ const BookingScreen = () => {
                       marginBottom: 8,
                     }}
                   >
-                    {bus.departureTime} • {bus.duration} • {bus.busType}
+                    {bus.departureTime} • {bus.duration} •{" "}
+                    {selectedBusTypeState}
                   </Text>
                   <Text
                     style={{
@@ -1056,7 +1482,10 @@ const BookingScreen = () => {
                       color: theme.tint,
                     }}
                   >
-                    {bus.price * selectedSeats.length}CFA
+                    {(
+                      getCurrentPrice() * selectedSeats.length
+                    ).toLocaleString()}
+                    CFA
                   </Text>
                 </View>
               </View>

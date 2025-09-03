@@ -1,134 +1,432 @@
 export interface Bus {
   id: string;
   routeCity: string;
-  routeDestination: string;
-  departure: string[];
-  arrival: string;
-  price: number;
+  routeDestination: string[];
+  departure: {
+    location: string;
+    seatsTaken: {
+      Classic: string[]; // Seats taken for Classic bus type
+      VIP: string[]; // Seats taken for VIP bus type
+    };
+  }[];
+  arrival: {
+    city: string;
+    locations: string[];
+  }[];
+  price: { CL: number; VIP: number };
   duration: string;
-  busType: string;
-  seatsAvailable: number;
+  busType: string[];
+  totalSeats: number; // Total seats in the bus (70)
   image: string;
   departureTime: string;
   arrivalTime: string;
 }
 
+function getNextDepartureTime(scheduleIndex: number = 0) {
+  const now = new Date();
+
+  // Different schedules for different routes
+  const schedules = [
+    ["09:00 AM", "12:00 PM", "11:00 PM"], // Schedule 0
+  ];
+
+  const schedule = schedules[scheduleIndex] || schedules[0];
+
+  // Helper to convert time string to Date object (today or tomorrow)
+  function getTimeDate(timeStr: string, baseDate: Date) {
+    const [time, modifier] = timeStr.split(" ");
+    let [hours, minutes] = time.split(":").map(Number);
+
+    if (modifier === "PM" && hours !== 12) hours += 12;
+    if (modifier === "AM" && hours === 12) hours = 0;
+
+    const date = new Date(baseDate);
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  }
+
+  // Try today's schedule first
+  for (let i = 0; i < schedule.length; i++) {
+    const busTime = getTimeDate(schedule[i], now);
+    if (busTime > now) {
+      return schedule[i];
+    }
+  }
+
+  // If none left today, return the first one tomorrow
+  return schedule[0];
+}
+
+// Helper function to generate all possible seat numbers for a 70-seat bus
+export const generateAllSeatNumbers = (): string[] => {
+  const seats: string[] = [];
+  for (let row = 1; row <= 14; row++) {
+    // Left side: A, B, C
+    for (let leftSeat = 0; leftSeat < 3; leftSeat++) {
+      const letter = String.fromCharCode(65 + leftSeat);
+      seats.push(`${row}${letter}`);
+    }
+    // Right side: D, E
+    for (let rightSeat = 0; rightSeat < 2; rightSeat++) {
+      const letter = String.fromCharCode(68 + rightSeat);
+      seats.push(`${row}${letter}`);
+    }
+  }
+  return seats;
+};
+
+// Helper function to get available seats for a departure location and bus type
+export const getAvailableSeats = (
+  departureLocation: Bus["departure"][0],
+  busType: "Classic" | "VIP"
+): number => {
+  const totalSeats = 70;
+  const takenSeats = departureLocation.seatsTaken[busType]?.length || 0;
+  return totalSeats - takenSeats;
+};
+
+// Helper function to get seats available for all departure locations
+export const getDepartureWithAvailability = (bus: Bus) => {
+  return bus.departure.map((dept) => ({
+    ...dept,
+    availableSeats: {
+      Classic: getAvailableSeats(dept, "Classic"),
+      VIP: getAvailableSeats(dept, "VIP"),
+    },
+  }));
+};
+
+// Helper function to check if a specific seat is taken
+export const isSeatTaken = (
+  departureLocation: Bus["departure"][0],
+  seatNumber: string,
+  busType: "Classic" | "VIP"
+): boolean => {
+  return departureLocation.seatsTaken[busType]?.includes(seatNumber) || false;
+};
+
+// Helper function to book a seat
+export const bookSeat = (
+  bus: Bus,
+  departureLocationName: string,
+  seatNumber: string,
+  busType: "Classic" | "VIP"
+): boolean => {
+  const departureLocation = bus.departure.find(
+    (dept) => dept.location === departureLocationName
+  );
+  if (!departureLocation) return false;
+
+  // Check if seat is already taken
+  if (isSeatTaken(departureLocation, seatNumber, busType)) {
+    return false;
+  }
+
+  // Add seat to taken seats
+  if (!departureLocation.seatsTaken[busType]) {
+    departureLocation.seatsTaken[busType] = [];
+  }
+  departureLocation.seatsTaken[busType].push(seatNumber);
+  return true;
+};
+
+// Helper function to cancel a seat booking
+export const cancelSeatBooking = (
+  bus: Bus,
+  departureLocationName: string,
+  seatNumber: string,
+  busType: "Classic" | "VIP"
+): boolean => {
+  const departureLocation = bus.departure.find(
+    (dept) => dept.location === departureLocationName
+  );
+  if (!departureLocation) return false;
+
+  const seatIndex = departureLocation.seatsTaken[busType]?.indexOf(seatNumber);
+  if (seatIndex !== undefined && seatIndex > -1) {
+    departureLocation.seatsTaken[busType].splice(seatIndex, 1);
+    return true;
+  }
+  return false;
+};
+
 export const baseBuses: Bus[] = [
   {
     id: "1",
-    routeCity: "Yaoundé",
-    routeDestination: "Douala",
-    departure: ["Mvog-Ada", "Biyem-Assi", "Olembe"],
-    arrival: "Gare Routière Bonabéri",
-    price: 3500,
+    routeCity: "Bamenda",
+    routeDestination: ["Douala", "Buea", "Yaoundé"],
+    departure: [
+      {
+        location: "Bamenda Park",
+        seatsTaken: {
+          Classic: [
+            "1A",
+            "2A",
+            "3B",
+            "4C",
+            "5A",
+            "6B",
+            "7C",
+            "8A",
+            "9B",
+            "10A",
+          ], // 10 seats taken
+          VIP: ["1D", "2E", "3D", "4E", "5D"], // 5 seats taken
+        },
+      },
+      {
+        location: "Nkwen Motor Park",
+        seatsTaken: {
+          Classic: [
+            "1A",
+            "2B",
+            "3C",
+            "4A",
+            "5B",
+            "6C",
+            "7A",
+            "8B",
+            "9C",
+            "10A",
+            "11B",
+            "12C",
+          ], // 12 seats taken
+          VIP: ["1D", "2E", "3D", "4E", "5D", "6E", "7D", "8E"], // 8 seats taken
+        },
+      },
+      {
+        location: "Commercial Avenue",
+        seatsTaken: {
+          Classic: [
+            "1A",
+            "2A",
+            "3A",
+            "4B",
+            "5B",
+            "6C",
+            "7C",
+            "8A",
+            "9B",
+            "10C",
+            "11A",
+            "12B",
+            "13C",
+            "14A",
+          ], // 14 seats taken
+          VIP: ["1D", "2D", "3E", "4E", "5D", "6E"], // 6 seats taken
+        },
+      },
+    ],
+    arrival: [
+      {
+        city: "Douala",
+        locations: ["Gare Routière Ndokoti"],
+      },
+      {
+        city: "Buea",
+        locations: ["Mile 17 Station"],
+      },
+      {
+        city: "Bamenda",
+        locations: ["Bamenda Main Park"],
+      },
+    ],
+    price: { CL: 3500, VIP: 5000 },
     duration: "3h 45m",
-    busType: "Express",
-    seatsAvailable: 12,
+    busType: ["Classic", "VIP"],
+    totalSeats: 70,
     image: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400",
-    departureTime: "06:30 AM",
+    departureTime: getNextDepartureTime(0),
     arrivalTime: "10:15 AM",
   },
   {
     id: "2",
     routeCity: "Douala",
-    routeDestination: "Bafoussam",
-    departure: ["Bonabéri", "Makepe", "Akwa"],
-    arrival: "Gare Routière Bafoussam",
-    price: 4200,
+    routeDestination: ["Yaoundé", "Buea", "Bamenda"],
+    departure: [
+      {
+        location: "Gare Routière Ndokoti",
+        seatsTaken: {
+          Classic: ["1A", "2B", "3C", "4A", "5B"], // 5 seats taken
+          VIP: ["1D", "2E", "3D"], // 3 seats taken
+        },
+      },
+      {
+        location: "Bonabéri Motor Park",
+        seatsTaken: {
+          Classic: [
+            "1A",
+            "2A",
+            "3B",
+            "4C",
+            "5A",
+            "6B",
+            "7C",
+            "8A",
+            "9B",
+            "10C",
+          ], // 10 seats taken
+          VIP: ["1D", "2E", "3D", "4E", "5D", "6E", "7D"], // 7 seats taken
+        },
+      },
+      {
+        location: "Mboppi Park",
+        seatsTaken: {
+          Classic: [
+            "1A",
+            "2B",
+            "3C",
+            "4A",
+            "5B",
+            "6C",
+            "7A",
+            "8B",
+            "9C",
+            "10A",
+            "11B",
+            "12C",
+            "13A",
+            "14B",
+          ], // 14 seats taken
+          VIP: ["1D", "2E", "3D", "4E", "5D", "6E", "7D", "8E", "9D", "10E"], // 10 seats taken
+        },
+      },
+    ],
+    arrival: [
+      {
+        city: "Yaoundé",
+        locations: ["Ngoa Ekelle Motor Park"],
+      },
+      {
+        city: "Buea",
+        locations: ["Mile 17 Station"],
+      },
+      {
+        city: "Bamenda",
+        locations: ["Bamenda Main Park"],
+      },
+    ],
+    price: { CL: 4200, VIP: 6000 },
     duration: "4h 30m",
-    busType: "Luxury",
-    seatsAvailable: 8,
+    busType: ["Classic", "VIP"],
+    totalSeats: 70,
     image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400",
-    departureTime: "08:00 AM",
+    departureTime: getNextDepartureTime(1),
     arrivalTime: "12:30 PM",
   },
   {
     id: "3",
     routeCity: "Yaoundé",
-    routeDestination: "Bamenda",
-    departure: ["Mvog-Ada", "Mvan", "Nkomo"],
-    arrival: "Commercial Avenue Motor Park",
-    price: 6500,
+    routeDestination: ["Douala", "Buea", "Bamenda"],
+    departure: [
+      {
+        location: "Ngoa Ekelle Motor Park",
+        seatsTaken: {
+          Classic: ["1A", "2B"], // 2 seats taken
+          VIP: ["1D"], // 1 seat taken
+        },
+      },
+      {
+        location: "Mvan Station",
+        seatsTaken: {
+          Classic: ["1A", "2A", "3B", "4C", "5A", "6B", "7C"], // 7 seats taken
+          VIP: ["1D", "2E", "3D", "4E"], // 4 seats taken
+        },
+      },
+      {
+        location: "Odza Terminus",
+        seatsTaken: {
+          Classic: ["1A", "2B", "3C", "4A", "5B"], // 5 seats taken
+          VIP: ["1D", "2E", "3D"], // 3 seats taken
+        },
+      },
+    ],
+    arrival: [
+      {
+        city: "Douala",
+        locations: ["Gare Routière Ndokoti"],
+      },
+      {
+        city: "Buea",
+        locations: ["Mile 17 Station"],
+      },
+      {
+        city: "Bamenda",
+        locations: ["Bamenda Main Park"],
+      },
+    ],
+    price: { CL: 5000, VIP: 7000 },
     duration: "6h 15m",
-    busType: "Standard",
-    seatsAvailable: 15,
+    busType: ["Classic", "VIP"],
+    totalSeats: 70,
     image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400",
-    departureTime: "09:00 AM",
+    departureTime: getNextDepartureTime(2),
     arrivalTime: "03:15 PM",
   },
   {
     id: "4",
-    routeCity: "Douala",
-    routeDestination: "Buéa",
-    departure: ["Bonabéri", "Deido", "Bonanjo"],
-    arrival: "Buea Motor Park",
-    price: 2500,
+    routeCity: "Buea",
+    routeDestination: ["Yaoundé", "Bamenda", "Douala"],
+    departure: [
+      {
+        location: "Buea Motor Park",
+        seatsTaken: {
+          Classic: ["1A", "2B", "3C"], // 3 seats taken
+          VIP: ["1D", "2E"], // 2 seats taken
+        },
+      },
+      {
+        location: "Mile 17 Station",
+        seatsTaken: {
+          Classic: ["1A", "2A", "3B", "4C", "5A", "6B"], // 6 seats taken
+          VIP: ["1D", "2E", "3D", "4E"], // 4 seats taken
+        },
+      },
+      {
+        location: "Molyko Terminus",
+        seatsTaken: {
+          Classic: [
+            "1A",
+            "2B",
+            "3C",
+            "4A",
+            "5B",
+            "6C",
+            "7A",
+            "8B",
+            "9C",
+            "10A",
+            "11B",
+          ], // 11 seats taken
+          VIP: ["1D", "2E", "3D", "4E", "5D", "6E", "7D", "8E"], // 8 seats taken
+        },
+      },
+    ],
+    arrival: [
+      {
+        city: "Yaoundé",
+        locations: ["Ngoa Ekelle Motor Park"],
+      },
+      {
+        city: "Bamenda",
+        locations: ["Bamenda Main Park"],
+      },
+      {
+        city: "Buea",
+        locations: ["Buea Motor Park"],
+      },
+    ],
+    price: { CL: 4200, VIP: 6000 },
     duration: "2h 30m",
-    busType: "Express",
-    seatsAvailable: 20,
+    busType: ["Classic", "VIP"],
+    totalSeats: 70,
     image: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400",
-    departureTime: "01:00 PM",
+    departureTime: getNextDepartureTime(3),
     arrivalTime: "03:30 PM",
-  },
-  {
-    id: "5",
-    routeCity: "Bafoussam",
-    routeDestination: "Garoua",
-    departure: ["Centre-ville", "Tamdja", "Djeleng"],
-    arrival: "Gare Routière de Garoua",
-    price: 8500,
-    duration: "8h 00m",
-    busType: "VIP",
-    seatsAvailable: 6,
-    image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400",
-    departureTime: "10:00 PM",
-    arrivalTime: "06:00 AM",
-  },
-  {
-    id: "6",
-    routeCity: "Yaoundé",
-    routeDestination: "Bertoua",
-    departure: ["Mvog-Ada", "Mokolo", "Mfoundi"],
-    arrival: "Gare Routière Bertoua",
-    price: 5500,
-    duration: "5h 30m",
-    busType: "Standard",
-    seatsAvailable: 18,
-    image: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400",
-    departureTime: "07:30 AM",
-    arrivalTime: "01:00 PM",
-  },
-  {
-    id: "7",
-    routeCity: "Douala",
-    routeDestination: "Kribi",
-    departure: ["Bonabéri", "Bessengue", "Logbaba"],
-    arrival: "Kribi Beach Motor Park",
-    price: 3000,
-    duration: "3h 00m",
-    busType: "Express",
-    seatsAvailable: 14,
-    image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400",
-    departureTime: "02:00 PM",
-    arrivalTime: "05:00 PM",
-  },
-  {
-    id: "8",
-    routeCity: "Bamenda",
-    routeDestination: "Kumba",
-    departure: ["Commercial Avenue", "Foncha Street", "Up Station"],
-    arrival: "Kumba Motor Park",
-    price: 4500,
-    duration: "4h 45m",
-    busType: "Luxury",
-    seatsAvailable: 10,
-    image: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400",
-    departureTime: "11:00 AM",
-    arrivalTime: "03:45 PM",
   },
 ];
 
-// data/bookingData.ts
+// Enhanced Booking interface to include departure location and bus type
 export interface Booking {
   id: string;
   route: {
@@ -142,6 +440,8 @@ export interface Booking {
   currency: string;
   status: "CONFIRMED" | "PENDING" | "CANCELLED" | "COMPLETED";
   busId: string;
+  departureLocation: string; // Added departure location
+  busType: "Classic" | "VIP"; // Added bus type
   passengerName: string;
   bookingReference: string;
 }
@@ -160,6 +460,8 @@ export const bookingsData: Booking[] = [
     currency: "CFA",
     status: "CONFIRMED",
     busId: "1",
+    departureLocation: "Bamenda Park",
+    busType: "Classic",
     passengerName: "John Doe",
     bookingReference: "BK2024001",
   },
@@ -176,6 +478,8 @@ export const bookingsData: Booking[] = [
     currency: "CFA",
     status: "PENDING",
     busId: "2",
+    departureLocation: "Gare Routière Ndokoti",
+    busType: "Classic",
     passengerName: "Jane Smith",
     bookingReference: "BK2024002",
   },
@@ -192,6 +496,8 @@ export const bookingsData: Booking[] = [
     currency: "CFA",
     status: "CONFIRMED",
     busId: "3",
+    departureLocation: "Ngoa Ekelle Motor Park",
+    busType: "VIP",
     passengerName: "Mike Johnson",
     bookingReference: "BK2024003",
   },
@@ -208,6 +514,8 @@ export const bookingsData: Booking[] = [
     currency: "CFA",
     status: "COMPLETED",
     busId: "4",
+    departureLocation: "Mile 17 Station",
+    busType: "Classic",
     passengerName: "Sarah Wilson",
     bookingReference: "BK2024004",
   },
@@ -224,6 +532,8 @@ export const bookingsData: Booking[] = [
     currency: "CFA",
     status: "CANCELLED",
     busId: "5",
+    departureLocation: "Buea Motor Park",
+    busType: "VIP",
     passengerName: "Robert Brown",
     bookingReference: "BK2024005",
   },
@@ -241,7 +551,64 @@ export const getBookingById = (id: string) => {
 export const getRecentBookings = (limit: number = 5) => {
   return bookingsData.slice(0, limit);
 };
-// data/alertData.ts
+
+// Enhanced helper functions for seat management
+export const getTotalSeatsAvailable = (bus: Bus): number => {
+  const allDepartures = getDepartureWithAvailability(bus);
+  return allDepartures.reduce((total, dept) => {
+    return total + dept.availableSeats.Classic + dept.availableSeats.VIP;
+  }, 0);
+};
+
+export const getBestDepartureLocation = (
+  bus: Bus,
+  busType: "Classic" | "VIP"
+) => {
+  const departures = getDepartureWithAvailability(bus);
+  return departures.reduce((best, current) => {
+    const currentSeats = current.availableSeats[busType];
+    const bestSeats = best.availableSeats[busType];
+    return currentSeats > bestSeats ? current : best;
+  });
+};
+
+export const getSeatsFromLocation = (
+  bus: Bus,
+  locationName: string,
+  busType: "Classic" | "VIP"
+): number => {
+  const departures = getDepartureWithAvailability(bus);
+  const location = departures.find((dept) => dept.location === locationName);
+  return location ? location.availableSeats[busType] : 0;
+};
+
+// Function to simulate real-time seat booking (for demonstration)
+export const simulateRealTimeBooking = (busId: string) => {
+  const bus = baseBuses.find((b) => b.id === busId);
+  if (!bus) return;
+
+  // Randomly book some seats to simulate real-time changes
+  const randomDeparture =
+    bus.departure[Math.floor(Math.random() * bus.departure.length)];
+  const busTypes: ("Classic" | "VIP")[] = ["Classic", "VIP"];
+  const randomBusType = busTypes[Math.floor(Math.random() * busTypes.length)];
+
+  const allSeats = generateAllSeatNumbers();
+  const availableSeats = allSeats.filter(
+    (seat) => !isSeatTaken(randomDeparture, seat, randomBusType)
+  );
+
+  if (availableSeats.length > 0) {
+    const randomSeat =
+      availableSeats[Math.floor(Math.random() * availableSeats.length)];
+    bookSeat(bus, randomDeparture.location, randomSeat, randomBusType);
+    console.log(
+      `Seat ${randomSeat} booked at ${randomDeparture.location} for ${randomBusType}`
+    );
+  }
+};
+
+// Rest of your alert data remains the same...
 export interface Alert {
   id: string;
   type: "reminder" | "delay" | "cancellation" | "boarding" | "arrival" | "info";
@@ -269,6 +636,7 @@ export interface AlertAction {
 }
 
 export const alertsData: Alert[] = [
+  // Your existing alert data...
   {
     id: "alert_1",
     type: "reminder",
@@ -391,7 +759,7 @@ export const alertsData: Alert[] = [
   },
 ];
 
-// Helper functions
+// Helper functions for alerts remain the same
 export const getUnreadAlerts = () => {
   return alertsData.filter((alert) => !alert.isRead);
 };
