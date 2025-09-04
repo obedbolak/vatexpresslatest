@@ -1,5 +1,6 @@
 import AuthGuard from "@/components/AuthGuard";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { LocationProvider } from "@/contexts/LocationContext";
 import { OnboardingProvider } from "@/contexts/OnboardingContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { useFonts } from "expo-font";
@@ -49,13 +50,15 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <OnboardingProvider>
-        <AuthProvider>
-          <AuthGuard>
-            <AppNavigator />
-          </AuthGuard>
-        </AuthProvider>
-      </OnboardingProvider>
+      <LocationProvider>
+        <OnboardingProvider>
+          <AuthProvider>
+            <AuthGuard>
+              <AppNavigator />
+            </AuthGuard>
+          </AuthProvider>
+        </OnboardingProvider>
+      </LocationProvider>
     </ThemeProvider>
   );
 }

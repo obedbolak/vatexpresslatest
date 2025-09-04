@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "@/contexts/LocationContext"; // Add this import
 import { useTheme } from "@/contexts/ThemeContext";
 import { baseBuses, Bus, getDepartureWithAvailability } from "@/db/busData";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,6 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Dimensions,
   Image,
   Modal,
@@ -88,13 +90,23 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
   const { theme, isDark, toggleTheme } = useTheme();
   const { user } = useAuth();
 
+  // Add location context
+  const {
+    location: gpsLocation,
+    address,
+    loading: locationLoading,
+    error: locationError,
+    getCurrentLocation,
+    clearError,
+  } = useLocation();
+
   const scrollViewRef = useRef<ScrollView>(null);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
-  // User's current location state
+  // User's current location state - now can be GPS-based or manually selected
   const [userLocation, setUserLocation] = useState<Location | null>({
     id: "1",
     name: "Yaoundé",
@@ -103,6 +115,7 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
     popular: true,
   });
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [isUsingGPSLocation, setIsUsingGPSLocation] = useState(false);
 
   // Modal states for bus selection
   const [selectedBusForBooking, setSelectedBusForBooking] =
@@ -115,14 +128,70 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
     "Classic" | "VIP"
   >("Classic");
 
+  // Function to match GPS coordinates to nearest city
+  const matchLocationToCity = (
+    gpsCoords: any,
+    addressData: any
+  ): Location | null => {
+    // Simple city matching based on address data
+    if (addressData?.city) {
+      const matchedCity = MAIN_CITIES.find(
+        (city) =>
+          city.name.toLowerCase().includes(addressData.city.toLowerCase()) ||
+          addressData.city.toLowerCase().includes(city.name.toLowerCase())
+      );
+      if (matchedCity) return matchedCity;
+    }
+
+    // Fallback: could implement coordinate-based distance calculation
+    // For now, return Yaoundé as default
+    return MAIN_CITIES[0];
+  };
+
+  // Handle GPS location request
+  const handleGetGPSLocation = async () => {
+    clearError();
+    try {
+      const locationData = await getCurrentLocation();
+      if (locationData && address) {
+        const matchedCity = matchLocationToCity(locationData.coords, address);
+        if (matchedCity) {
+          setUserLocation(matchedCity);
+          setIsUsingGPSLocation(true);
+          Alert.alert(
+            "Location Found",
+            `Your location has been set to ${matchedCity.name} based on your GPS coordinates.`,
+            [{ text: "OK" }]
+          );
+        }
+      }
+    } catch (error) {
+      Alert.alert(
+        "Location Error",
+        "Unable to get your current location. Please select manually.",
+        [{ text: "OK" }]
+      );
+    }
+  };
+
   // Initialize user location on component mount
   useEffect(() => {
-    // You can set this based on user profile, GPS, or prompt user to select
-    // For now, we'll show the location selection modal if no location is set
-    if (!userLocation) {
-      setShowLocationModal(true);
+    // Automatically try to get GPS location on first load
+    if (!isUsingGPSLocation) {
+      handleGetGPSLocation();
     }
   }, []);
+
+  // Update location when GPS data changes
+  useEffect(() => {
+    if (gpsLocation && address && !userLocation) {
+      const matchedCity = matchLocationToCity(gpsLocation.coords, address);
+      if (matchedCity) {
+        setUserLocation(matchedCity);
+        setIsUsingGPSLocation(true);
+      }
+    }
+  }, [gpsLocation, address]);
 
   const generateWeekData = (): DayData[] => {
     const today = new Date();
@@ -241,6 +310,7 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
 
   const handleLocationSelect = (location: Location) => {
     setUserLocation(location);
+    setIsUsingGPSLocation(false);
     setShowLocationModal(false);
   };
 
@@ -443,38 +513,6 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
           >
             {user?.firstName} {user?.lastName}
           </Text>
-          {userLocation && (
-            <Pressable
-              onPress={() => setShowLocationModal(true)}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginTop: 4,
-              }}
-            >
-              <Ionicons
-                name="location"
-                size={14}
-                color={theme.tint}
-                style={{ marginRight: 4 }}
-              />
-              <Text
-                style={{
-                  fontSize: 14,
-                  color: theme.tint,
-                  fontWeight: "600",
-                }}
-              >
-                {userLocation.name}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={12}
-                color={theme.tint}
-                style={{ marginLeft: 2 }}
-              />
-            </Pressable>
-          )}
         </View>
         <View style={{ flexDirection: "row", gap: 10 }}>
           <Pressable
@@ -686,17 +724,38 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
             </Text>
           </View>
 
-          <Pressable onPress={() => setActiveTab("Search")}>
-            <Text
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <Pressable
+              onPress={handleGetGPSLocation}
               style={{
-                fontSize: 14,
-                color: theme.tint,
-                fontWeight: "600",
+                backgroundColor: theme.tint + "20",
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 6,
               }}
             >
-              View All
-            </Text>
-          </Pressable>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: theme.tint,
+                  fontWeight: "600",
+                }}
+              >
+                📍 GPS
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => setActiveTab("Search")}>
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: theme.tint,
+                  fontWeight: "600",
+                }}
+              >
+                View All
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Enhanced Auto-scrolling Bus Cards */}
@@ -807,11 +866,10 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
                 ? `No buses departing from ${userLocation.name} today`
                 : "Please select your location to view available buses"}
             </Text>
-            {userLocation && (
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
               <Pressable
-                onPress={() => setShowLocationModal(true)}
+                onPress={handleGetGPSLocation}
                 style={{
-                  marginTop: 16,
                   paddingHorizontal: 20,
                   paddingVertical: 10,
                   backgroundColor: theme.tint,
@@ -824,10 +882,30 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
                     fontWeight: "600",
                   }}
                 >
-                  Change Location
+                  📍 Use GPS
                 </Text>
               </Pressable>
-            )}
+              <Pressable
+                onPress={() => setShowLocationModal(true)}
+                style={{
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  backgroundColor: theme.gradients.card.colors[0],
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: theme.tint,
+                }}
+              >
+                <Text
+                  style={{
+                    color: theme.tint,
+                    fontWeight: "600",
+                  }}
+                >
+                  Choose Location
+                </Text>
+              </Pressable>
+            </View>
           </View>
         )}
       </View>
@@ -953,6 +1031,64 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
               Choose your city to see available buses
             </Text>
 
+            {/* GPS Option */}
+            <Pressable
+              onPress={() => {
+                setShowLocationModal(false);
+                handleGetGPSLocation();
+              }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 15,
+                paddingHorizontal: 15,
+                borderRadius: 12,
+                marginBottom: 15,
+                backgroundColor: theme.tint + "10",
+                borderWidth: 1,
+                borderColor: theme.tint + "30",
+              }}
+            >
+              <Ionicons
+                name="navigate"
+                size={20}
+                color={theme.tint}
+                style={{ marginRight: 12 }}
+              />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.tint,
+                  }}
+                >
+                  📍 Use My Current Location
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: theme.tint,
+                    opacity: 0.7,
+                  }}
+                >
+                  Get location automatically
+                </Text>
+              </View>
+            </Pressable>
+
+            <Text
+              style={{
+                fontSize: 14,
+                color: theme.gradients.card.text,
+                opacity: 0.7,
+                marginBottom: 10,
+                textAlign: "center",
+              }}
+            >
+              Or choose manually:
+            </Text>
+
             {MAIN_CITIES.map((city) => (
               <Pressable
                 key={city.id}
@@ -965,7 +1101,7 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
                   borderRadius: 12,
                   marginBottom: 10,
                   backgroundColor:
-                    userLocation?.id === city.id
+                    userLocation?.id === city.id && !isUsingGPSLocation
                       ? theme.tint + "20"
                       : "transparent",
                 }}
@@ -996,7 +1132,7 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
                     {city.region} Region
                   </Text>
                 </View>
-                {userLocation?.id === city.id && (
+                {userLocation?.id === city.id && !isUsingGPSLocation && (
                   <Ionicons name="checkmark" size={20} color={theme.tint} />
                 )}
               </Pressable>
@@ -1206,6 +1342,7 @@ const Home = ({ setActiveTab }: { setActiveTab: any }) => {
 
 export default Home;
 
+// Keep the existing RecentBookingCard and BusCard components as they were...
 interface RecentBookingCardProps {
   theme: any;
 }

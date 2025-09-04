@@ -71,7 +71,7 @@ export interface RegisterData {
 }
 
 // API Base URL - Update this to match your backend
-const API_BASE_URL = "http://10.0.2.2:3000/api/v1"; // Update this!
+const API_BASE_URL = "http://192.168.0.108:3000/api/v1"; // Update this!
 
 const useAuthStore = create<AuthState>()(
   persist(

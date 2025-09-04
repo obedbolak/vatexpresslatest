@@ -1284,7 +1284,11 @@ const BusListCard: React.FC<BusListCardProps> = ({
                 }
                 start={theme.gradients.buttonSecondary.start}
                 end={theme.gradients.buttonSecondary.end}
-                locations={theme.gradients.buttonSecondary.locations}
+                locations={
+                  bus.selectedBusType === "VIP"
+                    ? [0, 1] // Fixed: Match the number of VIP colors
+                    : theme.gradients.buttonSecondary.locations
+                }
                 style={{
                   paddingHorizontal: 8,
                   paddingVertical: 4,
@@ -1376,24 +1380,7 @@ const BusListCard: React.FC<BusListCardProps> = ({
               alignItems: "center",
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Ionicons
-                name="people"
-                size={14}
-                color={theme.gradients.card.text}
-                style={{ opacity: 0.6, marginRight: 4 }}
-              />
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: theme.gradients.card.text,
-                  opacity: 0.7,
-                  fontWeight: "500",
-                }}
-              >
-                {bus.totalAvailableSeats} seats left
-              </Text>
-            </View>
+            <View style={{ flexDirection: "row", alignItems: "center" }}></View>
 
             <Pressable onPress={onBookNow}>
               <LinearGradient

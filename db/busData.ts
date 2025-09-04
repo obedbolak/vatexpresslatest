@@ -150,6 +150,8 @@ export const cancelSeatBooking = (
   return false;
 };
 
+// creating seets available for the vaious dates
+
 export const baseBuses: Bus[] = [
   {
     id: "1",
@@ -158,6 +160,7 @@ export const baseBuses: Bus[] = [
     departure: [
       {
         location: "Bamenda Park",
+
         seatsTaken: {
           Classic: [
             "1A",

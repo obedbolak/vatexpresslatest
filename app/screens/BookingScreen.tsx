@@ -59,7 +59,6 @@ const BookingScreen = () => {
   );
 
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
 
   // Updated to use the actual departure structure with calculated available seats
   const [selectedDeparturePoint, setSelectedDeparturePoint] = useState<
@@ -101,6 +100,7 @@ const BookingScreen = () => {
     "mobile" | "card" | "cash"
   >("mobile");
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
+  const [busNumber, setBusNumber] = useState<string>("563");
 
   // Get current price based on selected bus type
   const getCurrentPrice = () => {
@@ -1341,7 +1341,18 @@ const BookingScreen = () => {
               {passengerInfo.firstName} {passengerInfo.lastName}
             </Text>
           </View>
-
+          <View
+            style={{ flexDirection: "row", justifyContent: "space-between" }}
+          >
+            <Text style={{ color: theme.gradients.card.text, opacity: 0.7 }}>
+              Bus Number:
+            </Text>
+            <Text
+              style={{ color: theme.gradients.card.text, fontWeight: "600" }}
+            >
+              {busNumber}
+            </Text>
+          </View>
           <View
             style={{
               height: 1,

@@ -9,13 +9,18 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app needs location access to provide location-based features.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs location access to provide location-based features."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
       "edgeToEdgeEnabled": true,
       "package": "com.beck50.mynewapp"
     },
@@ -36,7 +41,15 @@
         }
       ],
       "expo-localization",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "This app needs location access to provide location-based features.",
+          "locationAlwaysPermission": "This app needs location access to provide location-based features.",
+          "locationWhenInUsePermission": "This app needs location access to provide location-based features."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
